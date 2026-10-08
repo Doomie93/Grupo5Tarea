@@ -1,0 +1,2 @@
+# Sin dependencias externas: todo usa la biblioteca estándar de Python 3.9+
+# (sqlite3, hashlib, hmac, unittest...). Para ejecutar: python main.py

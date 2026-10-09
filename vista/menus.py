@@ -1,382 +1,420 @@
-"""Interfaz de consola: solo muestra información y pide datos.
-Toda la lógica de negocio vive en los controladores."""
-from dao.excepciones import AutenticacionError, EcoTechError
-from modelo.empleado import TIPOS_EMPLEADO
-from modelo.proyecto import ESTADOS
-from modelo.usuario import ADMIN, EMPLEADO, GERENTE, ROLES
-from modelo import validar_email, validar_rut
-
-from . import validaciones as v
-
-
-# ---------------------------------------------------------------- utilidades
-def titulo(txt):
-    print(f"\n{'=' * 60}\n  {txt}\n{'=' * 60}")
+import sys
+from datetime import date
+from controlador.dto_inicial import InicializadorDTO
+from controlador.dto_departamento import DepartamentoDTO
+from controlador.dto_empleado import EmpleadoDTO
+from controlador.dto_proyecto import ProyectoDTO
+from controlador.dto_asignacion import AsignacionProyectoDTO
+from controlador.dto_registro import RegistroTiempoDTO
+from controlador.dto_usuario import UsuarioDTO
+from vista.entrada import pedir, pedirClave, MSG_ATAJO
+from vista.validaciones import (validaInt, validaTexto, validaCorreo, validaTelefono, validaFecha,
+                                validaNombreUsuario, validaClaveNueva, validaConfirmacion, validaOpc)
 
 
-def tabla(encabezados, filas):
-    filas = [[str(c) for c in f] for f in filas]
-    if not filas:
-        print("  (sin resultados)")
+# ------------------------------------------------------------------ utilidades
+def titulo(txt: str) -> None:
+    print("\n--------------------")
+    print(txt)
+    print("--------------------\n")
+
+
+def listar(lista: list, vacio: str) -> None:
+    if len(lista) > 0:
+        for item in lista:
+            print(item)
+    else:
+        print(vacio)
+
+
+def prepararBD() -> bool:
+    return InicializadorDTO().prepararBaseDatos()
+
+
+# Carga las listas de clase desde la BD (en este orden por las relaciones entre objetos)
+def cargaInicial() -> None:
+    deptoDTO = DepartamentoDTO()
+    deptoDTO.cargarDatos()
+    EmpleadoDTO().cargarDatos()
+    deptoDTO.vincularGerentes()
+    ProyectoDTO().cargarDatos()
+    AsignacionProyectoDTO().cargarDatos()
+    RegistroTiempoDTO().cargarDatos()
+
+
+# Login: la contraseña se oculta con "*"
+def validarLogin():
+    nombre = pedir("Ingrese usuario: ").strip()
+    clave = pedirClave("Ingrese contraseña: ")
+    return UsuarioDTO().validarAcceso(nombre, clave)
+
+
+# Selectores de objetos (retornan None si no existen)
+def seleccionarDepto(txt: str = "Id del departamento"):
+    depto = DepartamentoDTO().findDepto(validaInt(txt, 1))
+    if depto is None:
+        print("El departamento no existe.")
+    return depto
+
+
+def seleccionarEmpleado(txt: str = "Id del empleado"):
+    emp = EmpleadoDTO().findEmpleado(validaInt(txt, 1))
+    if emp is None:
+        print("El empleado no existe.")
+    return emp
+
+
+def seleccionarProyecto(txt: str = "Id del proyecto"):
+    proy = ProyectoDTO().findProyecto(validaInt(txt, 1))
+    if proy is None:
+        print("El proyecto no existe.")
+    return proy
+
+
+# ------------------------------------------------------------------ departamentos
+def registrarDepto() -> None:
+    titulo("Agregar Departamento.")
+    nombre = validaTexto("Nombre del departamento", 3, 50)
+    idGerente = None
+    if validaConfirmacion("¿Desea asignar un gerente?"):
+        gerente = seleccionarEmpleado("Id del empleado gerente")
+        if gerente is None:
+            return print("Operación Cancelada.")
+        idGerente = gerente.getId()
+    print(DepartamentoDTO().addDepto(nombre, idGerente))
+
+
+def modificarDepto() -> None:
+    titulo("Modificar Departamento.")
+    depto = seleccionarDepto()
+    if depto is None:
         return
-    anchos = [max(len(h), *(len(f[i]) for f in filas)) for i, h in enumerate(encabezados)]
-    linea = "  " + "  ".join(h.ljust(a) for h, a in zip(encabezados, anchos))
-    print(linea)
-    print("  " + "  ".join("-" * a for a in anchos))
-    for f in filas:
-        print("  " + "  ".join(c.ljust(a) for c, a in zip(f, anchos)))
+    nombre = validaTexto("Nombre del departamento", 3, 50, actual=depto.getNombre())
+    idGerente = depto.getGerente().getId() if depto.getGerente() is not None else None
+    if validaConfirmacion("¿Desea cambiar el gerente?"):
+        gerente = seleccionarEmpleado("Id del nuevo gerente")
+        if gerente is None:
+            return print("Operación Cancelada.")
+        idGerente = gerente.getId()
+    print(DepartamentoDTO().updateDepto(depto.getId(), nombre, idGerente))
 
 
-def seguro(accion):
-    """Ejecuta una acción de menú: los errores esperados se informan sin cerrar el programa."""
-    try:
-        accion()
-    except EcoTechError as e:
-        print(f"\n⚠  {e}")
-    except KeyboardInterrupt:
-        print("\n   Operación cancelada.")
+def eliminarDepto() -> None:
+    titulo("Eliminar Departamento.")
+    depto = seleccionarDepto()
+    if depto is None:
+        return
+    if validaConfirmacion("¿Estas seguro que deseas eliminar el Departamento?"):
+        print(DepartamentoDTO().delDepto(depto.getId()))
+    else:
+        print("Operación Cancelada.")
 
 
-def dinero(x):
-    return f"${x:,.0f}".replace(",", ".")
+def mostrarDeptos() -> None:
+    titulo("Listado de Departamentos.")
+    listar(DepartamentoDTO().findAllDeptos(), "No hay Departamentos Registrados.")
 
 
-# ---------------------------------------------------------------- aplicación
-class AplicacionConsola:
-    def __init__(self, ctx):
-        self.c = ctx  # contenedor de controladores (ver main.py)
+def buscarDepto() -> None:
+    titulo("Buscar Departamento.")
+    depto = seleccionarDepto()
+    if depto is not None:
+        print(depto)
+        print("\nEmpleados del departamento:")
+        listar(depto.getEmpleados(), "El departamento no tiene empleados.")
 
-    # ---- arranque / login ----
-    def ejecutar(self):
-        titulo("EcoTech Solutions · Sistema de Gestión")
+
+def agregarEmpleadoDepto() -> None:
+    titulo("Agregar Empleado a un Departamento.")
+    emp = seleccionarEmpleado()
+    if emp is None:
+        return
+    if emp.getDepartamento() is not None:
+        return print(f"El empleado ya pertenece a '{emp.getDepartamento().getNombre()}', use la opción Reasignar.")
+    depto = seleccionarDepto()
+    if depto is not None:
+        print(DepartamentoDTO().addEmpleadoDepto(emp.getId(), depto.getId()))
+
+
+def reasignarEmpleadoDepto() -> None:
+    titulo("Reasignar Empleado a otro Departamento.")
+    emp = seleccionarEmpleado()
+    if emp is None:
+        return
+    if emp.getDepartamento() is None:
+        return print("El empleado no tiene departamento, use la opción Agregar Empleado.")
+    depto = seleccionarDepto("Id del nuevo departamento")
+    if depto is None:
+        return
+    if depto.getId() == emp.getDepartamento().getId():
+        return print("El empleado ya pertenece a ese departamento.")
+    print(DepartamentoDTO().reasignarEmpleadoDepto(emp.getId(), depto.getId()))
+
+
+# ------------------------------------------------------------------ empleados
+def registrarEmpleado() -> None:
+    titulo("Agregar Empleado.")
+    nombre = validaTexto("Nombre", 2, 50)
+    apellido = validaTexto("Apellido", 2, 50)
+    correo = validaCorreo()
+    fecha = validaFecha("Fecha de contrato", permitirFutura=False)
+    salario = validaInt("Salario (pesos)", 0)
+    direccion = validaTexto("Dirección", 3, 100)
+    telefono = validaTelefono()
+    idDepto = None
+    if validaConfirmacion("¿Desea asignar un departamento ahora?"):
+        depto = seleccionarDepto()
+        if depto is None:
+            return print("Operación Cancelada.")
+        idDepto = depto.getId()
+    print(EmpleadoDTO().addEmpleado(nombre, apellido, correo, fecha, salario, direccion, telefono, idDepto))
+
+
+def modificarEmpleado() -> None:
+    titulo("Modificar Empleado.")
+    emp = seleccionarEmpleado()
+    if emp is None:
+        return
+    nombre = validaTexto("Nombre", 2, 50, actual=emp.getNombre())
+    apellido = validaTexto("Apellido", 2, 50, actual=emp.getApellido())
+    correo = validaCorreo(emp.getCorreo())
+    fecha = validaFecha("Fecha de contrato", actual=emp.getFechaContrato(), permitirFutura=False)
+    salario = validaInt("Salario (pesos)", 0, actual=emp.getSalario())
+    direccion = validaTexto("Dirección", 3, 100, actual=emp.getDireccion())
+    telefono = validaTelefono(emp.getTelefono())
+    print(EmpleadoDTO().updateEmpleado(emp.getId(), nombre, apellido, correo, fecha, salario, direccion, telefono))
+
+
+def eliminarEmpleado() -> None:
+    titulo("Eliminar Empleado.")
+    emp = seleccionarEmpleado()
+    if emp is None:
+        return
+    if validaConfirmacion("¿Estas seguro que deseas eliminar el Empleado?"):
+        print(EmpleadoDTO().delEmpleado(emp.getId()))
+    else:
+        print("Operación Cancelada.")
+
+
+def mostrarEmpleados() -> None:
+    titulo("Listado de Empleados.")
+    listar(EmpleadoDTO().findAllEmpleados(), "No hay Empleados Registrados.")
+
+
+def buscarEmpleado() -> None:
+    titulo("Buscar Empleado.")
+    emp = seleccionarEmpleado()
+    if emp is not None:
+        print(emp)
+
+
+# ------------------------------------------------------------------ proyectos
+def registrarProyecto() -> None:
+    titulo("Agregar Proyecto.")
+    nombre = validaTexto("Nombre del proyecto", 3, 80)
+    descripcion = validaTexto("Descripción", 3, 200)
+    fecha = validaFecha("Fecha de inicio")
+    print(ProyectoDTO().addProyecto(nombre, descripcion, fecha))
+
+
+def modificarProyecto() -> None:
+    titulo("Modificar Proyecto.")
+    proy = seleccionarProyecto()
+    if proy is None:
+        return
+    nombre = validaTexto("Nombre del proyecto", 3, 80, actual=proy.getNombre())
+    descripcion = validaTexto("Descripción", 3, 200, actual=proy.getDescripcion())
+    fecha = validaFecha("Fecha de inicio", actual=proy.getFechaInicio())
+    print(ProyectoDTO().updateProyecto(proy.getId(), nombre, descripcion, fecha))
+
+
+def eliminarProyecto() -> None:
+    titulo("Eliminar Proyecto.")
+    proy = seleccionarProyecto()
+    if proy is None:
+        return
+    if validaConfirmacion("¿Estas seguro que deseas eliminar el Proyecto?"):
+        print(ProyectoDTO().delProyecto(proy.getId()))
+    else:
+        print("Operación Cancelada.")
+
+
+def listarProyectos() -> None:
+    titulo("Listado de Proyectos.")
+    listar(ProyectoDTO().findAllProyectos(), "No hay Proyectos Registrados.")
+
+
+def buscarProyecto() -> None:
+    titulo("Buscar Proyecto.")
+    proy = seleccionarProyecto()
+    if proy is not None:
+        print(proy)
+
+
+# ------------------------------------------------------------------ asignaciones
+def registrarAsignacion() -> None:
+    titulo("Asignar Empleado a Proyecto.")
+    emp = seleccionarEmpleado()
+    if emp is None:
+        return
+    proy = seleccionarProyecto()
+    if proy is None:
+        return
+    fecha = validaFecha("Fecha de asignación", actual=date.today())
+    print(AsignacionProyectoDTO().addAsignacion(emp, proy, fecha))
+
+
+def listarAsignaciones() -> None:
+    titulo("Listado de Asignaciones.")
+    listar(AsignacionProyectoDTO().findAllAsignaciones(), "No hay Asignaciones Registradas.")
+
+
+def listarAsignacionesPorEmpleado() -> None:
+    titulo("Asignaciones por Empleado.")
+    emp = seleccionarEmpleado()
+    if emp is not None:
+        listar(AsignacionProyectoDTO().findAsignacionesPorEmpleado(emp), "El empleado no tiene asignaciones.")
+
+
+def listarAsignacionesPorProyecto() -> None:
+    titulo("Asignaciones por Proyecto.")
+    proy = seleccionarProyecto()
+    if proy is not None:
+        listar(AsignacionProyectoDTO().findAsignacionesPorProyecto(proy), "El proyecto no tiene asignaciones.")
+
+
+# ------------------------------------------------------------------ registro de horas
+def registrarHoras() -> None:
+    titulo("Registrar Horas Trabajadas.")
+    emp = seleccionarEmpleado()
+    if emp is None:
+        return
+    proy = seleccionarProyecto()
+    if proy is None:
+        return
+    if not any(a.getProyecto() is proy for a in emp.getAsignaciones()):
+        return print("El empleado no está asignado a ese proyecto, primero debe asignarlo.")
+    fecha = validaFecha("Fecha del registro", actual=date.today(), permitirFutura=False)
+    horas = validaInt("Horas trabajadas (1 a 24)", 1, 24)
+    descripcion = validaTexto("Descripción de la tarea", 3, 200)
+    print(RegistroTiempoDTO().addRegistro(emp, proy, fecha, horas, descripcion))
+
+
+def listarRegistros() -> None:
+    titulo("Listado de Registros de Tiempo.")
+    listar(RegistroTiempoDTO().findAllRegistros(), "No hay Registros de Tiempo.")
+
+
+def listarRegistrosPorEmpleado() -> None:
+    titulo("Registros de Tiempo por Empleado.")
+    emp = seleccionarEmpleado()
+    if emp is not None:
+        listar(RegistroTiempoDTO().findRegistrosPorEmpleado(emp), "El empleado no tiene registros.")
+        print(f"Total de horas: {sum(r.getHorasTrabajadas() for r in emp.getRegistros())}")
+
+
+def listarRegistrosPorProyecto() -> None:
+    titulo("Registros de Tiempo por Proyecto.")
+    proy = seleccionarProyecto()
+    if proy is not None:
+        listar(RegistroTiempoDTO().findRegistrosPorProyecto(proy), "El proyecto no tiene registros.")
+        print(f"Total de horas: {sum(r.getHorasTrabajadas() for r in proy.getRegistros())}")
+
+
+# ------------------------------------------------------------------ usuarios
+def registrarUsuario() -> None:
+    titulo("Registrar Usuario.")
+    emp = seleccionarEmpleado("Id del empleado al que corresponde el usuario")
+    if emp is None:
+        return
+    nombre = validaNombreUsuario()
+    clave = validaClaveNueva()
+    print("Rol: 1. ADMINISTRADOR | 2. USUARIO")
+    rol = "ADMINISTRADOR" if validaInt("Seleccione el rol", 1, 2) == 1 else "USUARIO"
+    print(UsuarioDTO().addUsuario(nombre, clave, rol, emp.getId()))
+
+
+# ------------------------------------------------------------------ menús
+# Menú genérico: la última opción siempre es salir/volver. Cualquier excepción o atajo de consola
+# (Ctrl+C, Ctrl+Z...) se captura aquí, así el usuario no puede cerrar el programa por accidente.
+def ejecutarMenu(nombre: str, opciones: list, textoSalida: str = "Volver al Menu Principal") -> None:
+    while True:
         try:
-            if not self.c.auth.hay_usuarios():
-                self._crear_primer_admin()
-            while True:
-                if not self._login():
-                    break
-                self._menu_principal()
+            print("\n=================================")
+            print(f"===== {nombre} =====")
+            print("=================================\n")
+            for i, (texto, _) in enumerate(opciones, start=1):
+                print(f"{i}. {texto}")
+            print(f"{len(opciones) + 1}. {textoSalida}")
+            opc = validaOpc(len(opciones) + 1)
+            if opc == len(opciones) + 1:
+                break
+            opciones[opc - 1][1]()
+        except KeyboardInterrupt:
+            print("\n" + MSG_ATAJO)
         except EOFError:
-            print("\nEntrada finalizada.")
-        print("Hasta luego.")
+            if not sys.stdin.isatty():
+                raise
+            print("\n" + MSG_ATAJO)
+        except Exception as ex:
+            print(f"-Ocurrió un error inesperado, intente nuevamente: {ex}-")
 
-    def _crear_primer_admin(self):
-        print("\nPrimer uso: cree la cuenta de administrador.")
-        while True:
-            try:
-                u = v.pedir_texto("Usuario", 3, 30)
-                self.c.auth.registrar_primer_admin(u, v.pedir_password("Contraseña (mín. 8, letras y números)"))
-                print("✓ Administrador creado.")
-                return
-            except EcoTechError as e:
-                print(f"⚠  {e}")
 
-    def _login(self):
-        print("\n--- Inicio de sesión (Enter vacío para salir) ---")
-        while True:
-            usuario = input("Usuario: ").strip()
-            if not usuario:
-                return False
-            try:
-                u = self.c.auth.iniciar_sesion(usuario, v.pedir_password())
-                print(f"\n✓ Bienvenido/a, {u.username} ({u.rol})")
-                return True
-            except AutenticacionError as e:
-                print(f"⚠  {e}")
+def menuDepartamentos() -> None:
+    ejecutarMenu("CRUD Departamentos", [
+        ("Agregar Departamento", registrarDepto),
+        ("Modificar Departamento", modificarDepto),
+        ("Eliminar Departamento", eliminarDepto),
+        ("Mostrar todos los Departamentos", mostrarDeptos),
+        ("Buscar Departamento", buscarDepto),
+        ("Agregar Empleado a un Departamento", agregarEmpleadoDepto),
+        ("Reasignar Empleado a otro Departamento", reasignarEmpleadoDepto)])
 
-    # ---- menú principal por rol ----
-    def _menu_principal(self):
-        rol = self.c.sesion.usuario.rol
-        opciones = {
-            ADMIN: [("Empleados", self.menu_empleados), ("Departamentos", self.menu_departamentos),
-                    ("Proyectos", self.menu_proyectos), ("Asignaciones", self.menu_asignaciones),
-                    ("Registro de horas", self.menu_horas), ("Reportes", self.menu_reportes),
-                    ("Usuarios", self.menu_usuarios)],
-            GERENTE: [("Empleados", self.menu_empleados), ("Departamentos", self.menu_departamentos),
-                      ("Proyectos", self.menu_proyectos), ("Asignaciones", self.menu_asignaciones),
-                      ("Registro de horas", self.menu_horas), ("Reportes", self.menu_reportes)],
-            EMPLEADO: [("Mis asignaciones", lambda: self._ver_mis_asignaciones()),
-                       ("Registrar / ver mis horas", self.menu_horas)],
-        }[rol]
-        opciones = opciones + [("Cambiar mi contraseña", self._cambiar_password)]
-        while True:
-            titulo(f"Menú principal · {self.c.sesion.usuario.username} ({rol})")
-            for i, (nombre, _) in enumerate(opciones, 1):
-                print(f"  {i}. {nombre}")
-            print("  0. Cerrar sesión")
-            op = v.pedir_entero("Opción", 0, len(opciones))
-            if op == 0:
-                self.c.auth.cerrar_sesion()
-                return
-            seguro(opciones[op - 1][1])
 
-    @staticmethod
-    def _submenu(nombre, acciones):
-        while True:
-            titulo(nombre)
-            for i, (txt, _) in enumerate(acciones, 1):
-                print(f"  {i}. {txt}")
-            print("  0. Volver")
-            op = v.pedir_entero("Opción", 0, len(acciones))
-            if op == 0:
-                return
-            seguro(acciones[op - 1][1])
+def menuEmpleados() -> None:
+    ejecutarMenu("CRUD Empleados", [
+        ("Agregar Empleado", registrarEmpleado),
+        ("Modificar Empleado", modificarEmpleado),
+        ("Eliminar Empleado", eliminarEmpleado),
+        ("Mostrar todos los Empleados", mostrarEmpleados),
+        ("Buscar Empleado", buscarEmpleado)])
 
-    # ---------------------------------------------------------- EMPLEADOS
-    def menu_empleados(self):
-        a = [("Registrar empleado", self._emp_registrar), ("Listar empleados activos", self._emp_listar),
-             ("Buscar (nombre / RUT / correo)", self._emp_buscar), ("Ver detalle", self._emp_detalle),
-             ("Actualizar datos", self._emp_actualizar), ("Dar de baja", self._emp_baja),
-             ("Reactivar", self._emp_reactivar), ("Eliminar definitivamente", self._emp_eliminar),
-             ("Costo total de planilla", self._emp_planilla)]
-        self._submenu("Gestión de empleados", a)
 
-    def _mostrar_empleados(self, empleados):
-        tabla(["ID", "Tipo", "RUT", "Nombre", "Correo", "Líquido est.", "Depto", "Estado"],
-              [(e.id, e.TIPO, e.rut, e.nombre, e.email, dinero(e.calcular_salario()),
-                e.id_departamento or "-", "Activo" if e.activo else "Baja") for e in empleados])
+def menuProyectos() -> None:
+    ejecutarMenu("CRUD Proyectos", [
+        ("Agregar Proyecto", registrarProyecto),
+        ("Modificar Proyecto", modificarProyecto),
+        ("Eliminar Proyecto", eliminarProyecto),
+        ("Mostrar todos los Proyectos", listarProyectos),
+        ("Buscar Proyecto", buscarProyecto)])
 
-    def _emp_registrar(self):
-        self._listar_deptos_simple()
-        tipo = v.pedir_opcion("Tipo", list(TIPOS_EMPLEADO))
-        rut = v.pedir_con("RUT (12345678-5)", validar_rut)
-        nombre = v.pedir_texto("Nombre completo", 2, 80)
-        email = v.pedir_con("Correo", validar_email)
-        salario = v.pedir_decimal("Salario base", 0, 1e9, estricto=True)
-        ingreso = v.pedir_fecha("Fecha de ingreso", opcional=True)
-        depto = self._pedir_depto_opcional()
-        e = self.c.empleados.registrar(tipo, rut, nombre, email, salario, ingreso, depto)
-        print(f"✓ Empleado registrado con ID {e.id}.")
 
-    def _pedir_depto_opcional(self, defecto=None):
-        txt = input("ID de departamento (Enter = " + ("mantener" if defecto else "ninguno") + "): ").strip()
-        if not txt:
-            return defecto
-        while not txt.isdigit():
-            txt = input("   ✗ Debe ser numérico. ID de departamento: ").strip()
-        return int(txt)
+def menuAsignaciones() -> None:
+    ejecutarMenu("Asignaciones a Proyectos", [
+        ("Asignar Empleado a Proyecto", registrarAsignacion),
+        ("Mostrar todas las Asignaciones", listarAsignaciones),
+        ("Asignaciones por Empleado", listarAsignacionesPorEmpleado),
+        ("Asignaciones por Proyecto", listarAsignacionesPorProyecto)])
 
-    def _emp_listar(self):
-        self._mostrar_empleados(self.c.empleados.listar())
 
-    def _emp_buscar(self):
-        self._mostrar_empleados(self.c.empleados.buscar(input("Texto a buscar: ")))
+def menuRegistros() -> None:
+    ejecutarMenu("Registro de Horas", [
+        ("Registrar Horas Trabajadas", registrarHoras),
+        ("Mostrar todos los Registros", listarRegistros),
+        ("Registros por Empleado", listarRegistrosPorEmpleado),
+        ("Registros por Proyecto", listarRegistrosPorProyecto)])
 
-    def _emp_detalle(self):
-        e = self.c.empleados.obtener(v.pedir_entero("ID del empleado", 1))
-        print(f"\n  {e.nombre} · {e.TIPO}\n  RUT: {e.rut}   Correo: {e.email}"
-              f"\n  Salario base: {dinero(e.salario_base)}   Líquido estimado: {dinero(e.calcular_salario())}"
-              f"\n  Ingreso: {e.fecha_ingreso}  ({e.antiguedad_anios()} años)   Estado: "
-              f"{'Activo' if e.activo else 'De baja'}")
 
-    def _emp_actualizar(self):
-        e = self.c.empleados.obtener(v.pedir_entero("ID a actualizar", 1))
-        print("  (Enter conserva el valor actual)")
-        campos = {
-            "nombre": v.pedir_texto("Nombre", 2, 80, defecto=e.nombre),
-            "email": v.pedir_con("Correo", validar_email, defecto=e.email),
-            "salario_base": v.pedir_decimal("Salario base", 0, 1e9, True, defecto=e.salario_base),
-            "id_departamento": self._pedir_depto_opcional(e.id_departamento),
-        }
-        self.c.empleados.actualizar(e.id, **campos)
-        print("✓ Empleado actualizado.")
-
-    def _emp_baja(self):
-        id_ = v.pedir_entero("ID a dar de baja", 1)
-        if v.confirmar("¿Confirma la baja? (se conserva su historial)"):
-            self.c.empleados.dar_de_baja(id_)
-            print("✓ Empleado dado de baja.")
-
-    def _emp_reactivar(self):
-        self.c.empleados.reactivar(v.pedir_entero("ID a reactivar", 1))
-        print("✓ Empleado reactivado.")
-
-    def _emp_eliminar(self):
-        id_ = v.pedir_entero("ID a eliminar", 1)
-        if v.confirmar("⚠ Eliminación DEFINITIVA. ¿Continuar?"):
-            self.c.empleados.eliminar(id_)
-            print("✓ Empleado eliminado.")
-
-    def _emp_planilla(self):
-        print(f"  Costo mensual estimado de planilla activa: {dinero(self.c.empleados.costo_planilla())}")
-
-    # ------------------------------------------------------ DEPARTAMENTOS
-    def menu_departamentos(self):
-        self._submenu("Departamentos", [
-            ("Crear", self._dep_crear), ("Listar (con dotación)", self._dep_listar),
-            ("Actualizar", self._dep_actualizar), ("Eliminar", self._dep_eliminar)])
-
-    def _listar_deptos_simple(self):
-        try:
-            print("  Departamentos:", "; ".join(str(d) for d in self.c.departamentos.listar()) or "(ninguno)")
-        except EcoTechError:
-            pass
-
-    def _dep_crear(self):
-        d = self.c.departamentos.crear(v.pedir_texto("Nombre", 2, 60), v.pedir_texto_opcional("Descripción"))
-        print(f"✓ Departamento creado con ID {d.id}.")
-
-    def _dep_listar(self):
-        tabla(["ID", "Nombre", "Descripción", "Empleados"],
-              [(d.id, d.nombre, d.descripcion, n) for d, n in self.c.departamentos.listar_con_dotacion()])
-
-    def _dep_actualizar(self):
-        id_ = v.pedir_entero("ID a actualizar", 1)
-        self.c.departamentos.actualizar(id_, v.pedir_texto_opcional("Nuevo nombre") or None,
-                                        v.pedir_texto_opcional("Nueva descripción") or None)
-        print("✓ Departamento actualizado.")
-
-    def _dep_eliminar(self):
-        id_ = v.pedir_entero("ID a eliminar", 1)
-        if v.confirmar("¿Eliminar departamento?"):
-            self.c.departamentos.eliminar(id_)
-            print("✓ Departamento eliminado.")
-
-    # ----------------------------------------------------------- PROYECTOS
-    def menu_proyectos(self):
-        self._submenu("Proyectos", [
-            ("Crear", self._pro_crear), ("Listar", self._pro_listar),
-            ("Cambiar estado", self._pro_estado), ("Actualizar datos", self._pro_actualizar),
-            ("Eliminar", self._pro_eliminar)])
-
-    def _pro_crear(self):
-        p = self.c.proyectos.crear(
-            v.pedir_texto("Nombre del proyecto", 3, 80), v.pedir_fecha("Fecha de inicio"),
-            v.pedir_texto_opcional("Descripción"), v.pedir_fecha("Fecha de término", opcional=True),
-            v.pedir_decimal("Presupuesto", 0, 1e12))
-        print(f"✓ Proyecto creado con ID {p.id}.")
-
-    def _pro_listar(self):
-        tabla(["ID", "Nombre", "Estado", "Inicio", "Término", "Presupuesto"],
-              [(p.id, p.nombre, p.estado, p.fecha_inicio, p.fecha_fin or "-", dinero(p.presupuesto))
-               for p in self.c.proyectos.listar()])
-
-    def _pro_estado(self):
-        id_ = v.pedir_entero("ID del proyecto", 1)
-        self.c.proyectos.actualizar(id_, estado=v.pedir_opcion("Nuevo estado", list(ESTADOS)))
-        print("✓ Estado actualizado.")
-
-    def _pro_actualizar(self):
-        p = self.c.proyectos.obtener(v.pedir_entero("ID a actualizar", 1))
-        self.c.proyectos.actualizar(
-            p.id, nombre=v.pedir_texto("Nombre", 3, 80, defecto=p.nombre),
-            descripcion=v.pedir_texto_opcional("Descripción", p.descripcion),
-            presupuesto=v.pedir_decimal("Presupuesto", 0, 1e12, defecto=p.presupuesto))
-        print("✓ Proyecto actualizado.")
-
-    def _pro_eliminar(self):
-        id_ = v.pedir_entero("ID a eliminar", 1)
-        if v.confirmar("¿Eliminar proyecto?"):
-            self.c.proyectos.eliminar(id_)
-            print("✓ Proyecto eliminado.")
-
-    # --------------------------------------------------------- ASIGNACIONES
-    def menu_asignaciones(self):
-        self._submenu("Asignaciones empleado-proyecto", [
-            ("Asignar empleado a proyecto", self._asi_crear), ("Listar asignaciones", self._asi_listar),
-            ("Modificar rol / horas", self._asi_actualizar), ("Eliminar asignación", self._asi_eliminar)])
-
-    def _tabla_asignaciones(self, filas):
-        tabla(["ID", "Empleado", "Proyecto", "Rol", "H. asignadas", "H. registradas"],
-              [(f["id"], f["empleado"], f["proyecto"], f["rol_proyecto"],
-                f"{f['horas_asignadas']:g}", f"{f['horas_registradas']:g}") for f in filas])
-
-    def _asi_crear(self):
-        a = self.c.asignaciones.asignar(
-            v.pedir_entero("ID del empleado", 1), v.pedir_entero("ID del proyecto", 1),
-            v.pedir_texto("Rol en el proyecto", 2, 60), v.pedir_decimal("Horas asignadas", 0, 10000, True))
-        print(f"✓ Asignación creada con ID {a.id}.")
-
-    def _asi_listar(self):
-        self._tabla_asignaciones(self.c.asignaciones.listar())
-
-    def _ver_mis_asignaciones(self):
-        self._tabla_asignaciones(self.c.asignaciones.listar_mias())
-
-    def _asi_actualizar(self):
-        id_ = v.pedir_entero("ID de la asignación", 1)
-        rol = v.pedir_texto_opcional("Nuevo rol")
-        horas = v.pedir_decimal("Nuevas horas", 0, 10000, True, defecto=0)
-        self.c.asignaciones.actualizar(id_, rol or None, horas or None)
-        print("✓ Asignación actualizada.")
-
-    def _asi_eliminar(self):
-        id_ = v.pedir_entero("ID a eliminar", 1)
-        if v.confirmar("Se borrarán también sus horas registradas. ¿Continuar?"):
-            self.c.asignaciones.eliminar(id_)
-            print("✓ Asignación eliminada.")
-
-    # --------------------------------------------------------------- HORAS
-    def menu_horas(self):
-        self._submenu("Registro de horas", [
-            ("Registrar horas", self._hor_registrar), ("Ver horas de una asignación", self._hor_listar),
-            ("Eliminar un registro", self._hor_eliminar)])
-
-    def _hor_registrar(self):
-        if self.c.sesion.usuario.rol == EMPLEADO:
-            self._ver_mis_asignaciones()
-        r = self.c.registros.registrar(
-            v.pedir_entero("ID de la asignación", 1), v.pedir_fecha("Fecha"),
-            v.pedir_decimal("Horas trabajadas", 0, 24, True), v.pedir_texto_opcional("Descripción"))
-        print(f"✓ Registro guardado (ID {r.id}).")
-
-    def _hor_listar(self):
-        regs = self.c.registros.listar_por_asignacion(v.pedir_entero("ID de la asignación", 1))
-        tabla(["ID", "Fecha", "Horas", "Descripción"], [(r.id, r.fecha, f"{r.horas:g}", r.descripcion) for r in regs])
-        print(f"  Total: {sum(r.horas for r in regs):g} h")
-
-    def _hor_eliminar(self):
-        id_ = v.pedir_entero("ID del registro", 1)
-        if v.confirmar("¿Eliminar registro?"):
-            self.c.registros.eliminar(id_)
-            print("✓ Registro eliminado.")
-
-    # ------------------------------------------------------------ REPORTES
-    def menu_reportes(self):
-        self._submenu("Reportes", [("Horas por proyecto", self._rep_proyecto),
-                                   ("Horas por empleado", self._rep_empleado)])
-
-    def _rep_proyecto(self):
-        tabla(["Proyecto", "Estado", "H. asignadas", "H. registradas", "Avance"],
-              [(f["proyecto"], f["estado"], f"{f['horas_asignadas']:g}", f"{f['horas']:g}",
-                f"{(f['horas'] / f['horas_asignadas'] * 100):.0f}%" if f["horas_asignadas"] else "-")
-               for f in self.c.registros.reporte_horas_por_proyecto()])
-
-    def _rep_empleado(self):
-        tabla(["Empleado", "Horas registradas"],
-              [(f["empleado"], f"{f['horas']:g}") for f in self.c.registros.reporte_horas_por_empleado()])
-
-    # ------------------------------------------------------------ USUARIOS
-    def menu_usuarios(self):
-        self._submenu("Usuarios del sistema", [
-            ("Crear usuario", self._usr_crear), ("Listar", self._usr_listar),
-            ("Activar / desactivar", self._usr_estado), ("Eliminar", self._usr_eliminar)])
-
-    def _usr_crear(self):
-        rol = v.pedir_opcion("Rol", list(ROLES))
-        id_emp = v.pedir_entero("ID de empleado vinculado", 1) if rol == EMPLEADO else None
-        u = self.c.usuarios.crear(v.pedir_texto("Usuario", 3, 30),
-                                  v.pedir_password("Contraseña (mín. 8, letras y números)"), rol, id_emp)
-        print(f"✓ Usuario creado con ID {u.id}.")
-
-    def _usr_listar(self):
-        tabla(["ID", "Usuario", "Rol", "Empleado", "Activo"],
-              [(u.id, u.username, u.rol, u.id_empleado or "-", "Sí" if u.activo else "No")
-               for u in self.c.usuarios.listar()])
-
-    def _usr_estado(self):
-        id_ = v.pedir_entero("ID del usuario", 1)
-        self.c.usuarios.cambiar_estado(id_, v.confirmar("¿Dejarlo ACTIVO?"))
-        print("✓ Estado actualizado.")
-
-    def _usr_eliminar(self):
-        id_ = v.pedir_entero("ID a eliminar", 1)
-        if v.confirmar("¿Eliminar usuario?"):
-            self.c.usuarios.eliminar(id_)
-            print("✓ Usuario eliminado.")
-
-    # ------------------------------------------------------- CONTRASEÑA
-    def _cambiar_password(self):
-        self.c.auth.cambiar_mi_password(v.pedir_password("Contraseña actual"),
-                                        v.pedir_password("Nueva contraseña"))
-        print("✓ Contraseña actualizada.")
+# Menú principal
+def inicial(usuario) -> None:
+    cargaInicial()
+    emp = usuario.getEmpleado()
+    print(f"\nBienvenido/a {emp.getNombre()} {emp.getApellido()} ({usuario.getRol()})")
+    ejecutarMenu("EcoTech Solutions - Gestion de Empleados", [
+        ("Departamentos", menuDepartamentos),
+        ("Empleados", menuEmpleados),
+        ("Proyectos", menuProyectos),
+        ("Asignaciones a Proyectos", menuAsignaciones),
+        ("Registro de Horas", menuRegistros),
+        ("Registrar Usuario", registrarUsuario)], "Salir del Sistema")
+    print("Programa Finalizado.")

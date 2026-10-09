@@ -1,34 +1,26 @@
+from dao.base_dao import BaseDAO
+from dao.seguridad import encriptarClave, verificarClave
 from modelo.usuario import Usuario
-
-from .dao_base import DAOBase
-from .excepciones import NoEncontradoError
+from modelo.empleado import Empleado
 
 
-class DAOUsuario(DAOBase):
-    TABLA = "usuario"
-    ENTIDAD = "un usuario"
+class UsuarioDAO(BaseDAO):
 
-    def _mapear(self, f):
-        return Usuario(f["username"], f["password_hash"], f["rol"], f["id_empleado"], f["activo"], f["id"])
+    # Registra un usuario (la clave se guarda encriptada)
+    def registrarUsuario(self, usuario: Usuario) -> int:
+        return self._ejecutar("insert into USUARIO (NOMBREUSUARIO, CLAVE, ROL, IDEMPLEADO) values (%s, %s, %s, %s)",
+                              (usuario.getNombreUsuario(), encriptarClave(usuario.getClave()),
+                               usuario.getRol(), usuario.getEmpleado().getId()))
 
-    def crear(self, u):
-        u.id = self._cx.ejecutar(
-            "INSERT INTO usuario (username, password_hash, rol, id_empleado, activo) VALUES (?,?,?,?,?)",
-            (u.username, u.password_hash, u.rol, u.id_empleado, int(u.activo))).lastrowid
-        return u
-
-    def actualizar(self, u):
-        cur = self._cx.ejecutar(
-            "UPDATE usuario SET password_hash=?, rol=?, id_empleado=?, activo=? WHERE id=?",
-            (u.password_hash, u.rol, u.id_empleado, int(u.activo), u.id))
-        self._verificar_actualizacion(cur, u.id)
-
-    def obtener_por_username(self, username):
-        f = self._cx.consultar_uno("SELECT * FROM usuario WHERE username = ?", (username.strip().lower(),))
-        if f is None:
-            raise NoEncontradoError("Usuario no encontrado.")
-        return self._mapear(f)
-
-    def contar_admins_activos(self):
-        return self._cx.consultar_uno(
-            "SELECT COUNT(*) AS n FROM usuario WHERE rol='ADMIN' AND activo=1")["n"]
+    # Retorna el Usuario si las credenciales son correctas, de lo contrario None
+    def validarAcceso(self, nombreUsuario: str, clave: str) -> Usuario:
+        sql = ("select U.IDUSUARIO, U.NOMBREUSUARIO, U.CLAVE, U.ROL, E.IDEMPLEADO, E.NOMBRE, E.APELLIDO "
+               "from USUARIO U join EMPLEADO E on E.IDEMPLEADO = U.IDEMPLEADO where U.NOMBREUSUARIO = %s")
+        filas = self._consultar(sql, (nombreUsuario,))
+        if not filas:
+            return None
+        fila = filas[0]
+        if not verificarClave(clave, fila["CLAVE"]):
+            return None
+        empleado = Empleado(idEmpleado=fila["IDEMPLEADO"], nombre=fila["NOMBRE"], apellido=fila["APELLIDO"])
+        return Usuario(fila["IDUSUARIO"], fila["NOMBREUSUARIO"], "", fila["ROL"], empleado)

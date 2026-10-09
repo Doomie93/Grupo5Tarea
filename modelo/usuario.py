@@ -1,82 +1,42 @@
-"""Usuario del sistema. Las contraseñas NUNCA se guardan en texto plano:
-se almacena PBKDF2-HMAC-SHA256 con sal aleatoria."""
-import hashlib
-import hmac
-import os
-import re
-
-from dao.excepciones import ValidacionError
-
-from . import texto_requerido
-
-ADMIN, GERENTE, EMPLEADO = "ADMIN", "GERENTE", "EMPLEADO"
-ROLES = (ADMIN, GERENTE, EMPLEADO)
-_ITER = 200_000
+from modelo.empleado import Empleado
 
 
-def validar_password(pw):
-    pw = pw or ""
-    if len(pw) < 8 or not re.search(r"[A-Za-z]", pw) or not re.search(r"\d", pw):
-        raise ValidacionError("La contraseña debe tener al menos 8 caracteres, letras y números.")
-    return pw
+class Usuario():
 
+    # Constructor
+    def __init__(self, idUsuario: int = 0, nombreUsuario: str = "", clave: str = "", rol: str = "",
+                 empleado: Empleado = None) -> None:
+        self.__idUsuario = idUsuario
+        self.__nombreUsuario = nombreUsuario
+        self.__clave = clave
+        self.__rol = rol
+        self.__empleado = empleado
 
-def hashear_password(pw):
-    sal = os.urandom(16)
-    h = hashlib.pbkdf2_hmac("sha256", pw.encode(), sal, _ITER)
-    return f"pbkdf2${_ITER}${sal.hex()}${h.hex()}"
+    # String de la clase (nunca incluye la clave)
+    def __str__(self) -> str:
+        emp = f"{self.__empleado.getNombre()} {self.__empleado.getApellido()}" if self.__empleado is not None else "-"
+        return f"Usuario: {self.__nombreUsuario} | Rol: {self.__rol} | Empleado: {emp}"
 
-
-def verificar_password(pw, almacenado):
-    try:
-        _, it, sal, h = almacenado.split("$")
-        calc = hashlib.pbkdf2_hmac("sha256", pw.encode(), bytes.fromhex(sal), int(it))
-        return hmac.compare_digest(calc.hex(), h)  # comparación en tiempo constante
-    except (ValueError, AttributeError):
-        return False
-
-
-class Usuario:
-    def __init__(self, username, password_hash, rol, id_empleado=None, activo=True, id=None):
-        self.id = id
-        self.username = username
-        self.password_hash = password_hash
-        self.rol = rol
-        self.id_empleado = id_empleado
-        self.activo = bool(activo)
-
-    @classmethod
-    def nuevo(cls, username, password, rol, id_empleado=None):
-        """Crea un usuario validando la contraseña y guardando solo su hash."""
-        return cls(username, hashear_password(validar_password(password)), rol, id_empleado)
-
-    @property
-    def username(self):
-        return self.__username
-
-    @username.setter
-    def username(self, v):
-        v = texto_requerido(v, "El usuario", 3, 30)
-        if not re.fullmatch(r"[A-Za-z0-9_.-]+", v):
-            raise ValidacionError("El usuario solo admite letras, números, '.', '_' y '-'.")
-        self.__username = v.lower()
-
-    @property
-    def rol(self):
+    # Getters
+    def getId(self) -> int:
+        return self.__idUsuario
+    def getNombreUsuario(self) -> str:
+        return self.__nombreUsuario
+    def getClave(self) -> str:
+        return self.__clave
+    def getRol(self) -> str:
         return self.__rol
+    def getEmpleado(self) -> Empleado:
+        return self.__empleado
 
-    @rol.setter
-    def rol(self, v):
-        v = (v or "").upper()
-        if v not in ROLES:
-            raise ValidacionError(f"Rol inválido. Opciones: {', '.join(ROLES)}")
-        self.__rol = v
-
-    def cambiar_password(self, nueva):
-        self.password_hash = hashear_password(validar_password(nueva))
-
-    def autenticar(self, password):
-        return self.activo and verificar_password(password, self.password_hash)
-
-    def __str__(self):
-        return f"[{self.id}] {self.username} ({self.rol})"
+    # Setters
+    def setId(self, idUsuario: int) -> None:
+        self.__idUsuario = idUsuario
+    def setNombreUsuario(self, nombreUsuario: str) -> None:
+        self.__nombreUsuario = nombreUsuario
+    def setClave(self, clave: str) -> None:
+        self.__clave = clave
+    def setRol(self, rol: str) -> None:
+        self.__rol = rol
+    def setEmpleado(self, empleado: Empleado) -> None:
+        self.__empleado = empleado

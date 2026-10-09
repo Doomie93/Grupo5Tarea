@@ -1,43 +1,54 @@
-from datetime import date
+from modelo.empleado import Empleado
+from modelo.proyecto import Proyecto
 
-from . import numero, parsear_fecha, texto_requerido
 
+class AsignacionProyecto():
 
-class AsignacionProyecto:
-    """Relación N:M entre Empleado y Proyecto, con rol y horas comprometidas."""
+    # Atributos de clase
+    __listaAsignaciones = []
 
-    def __init__(self, id_empleado, id_proyecto, rol_proyecto, horas_asignadas,
-                 fecha_asignacion=None, id=None):
-        self.id = id
-        self.id_empleado = id_empleado
-        self.id_proyecto = id_proyecto
-        self.rol_proyecto = rol_proyecto
-        self.horas_asignadas = horas_asignadas
-        self.fecha_asignacion = fecha_asignacion or date.today()
+    # Constructor
+    def __init__(self, idAsignacion: int = 0, fechaAsignacion=None, empleado: Empleado = None,
+                 proyecto: Proyecto = None) -> None:
+        self.__idAsignacion = idAsignacion
+        self.__fechaAsignacion = fechaAsignacion
+        self.__empleado = empleado
+        self.__proyecto = proyecto
 
-    @property
-    def rol_proyecto(self):
-        return self.__rol
+    # String de la clase
+    def __str__(self) -> str:
+        fecha = self.__fechaAsignacion.strftime("%d-%m-%Y") if self.__fechaAsignacion is not None else "-"
+        emp = f"{self.__empleado.getNombre()} {self.__empleado.getApellido()}" if self.__empleado is not None else "-"
+        proy = self.__proyecto.getNombre() if self.__proyecto is not None else "-"
+        return f"Id: {self.__idAsignacion} | Fecha: {fecha} | Empleado: {emp} | Proyecto: {proy}"
 
-    @rol_proyecto.setter
-    def rol_proyecto(self, v):
-        self.__rol = texto_requerido(v, "El rol en el proyecto", 2, 60)
+    # Getters
+    def getId(self) -> int:
+        return self.__idAsignacion
+    def getFechaAsignacion(self):
+        return self.__fechaAsignacion
+    def getEmpleado(self) -> Empleado:
+        return self.__empleado
+    def getProyecto(self) -> Proyecto:
+        return self.__proyecto
+    def getListaAsignaciones(self) -> list:
+        return self.__listaAsignaciones
 
-    @property
-    def horas_asignadas(self):
-        return self.__horas
+    # Setters
+    def setId(self, idAsignacion: int) -> None:
+        self.__idAsignacion = idAsignacion
+    def setFechaAsignacion(self, fechaAsignacion) -> None:
+        self.__fechaAsignacion = fechaAsignacion
+    def setEmpleado(self, empleado: Empleado) -> None:
+        self.__empleado = empleado
+    def setProyecto(self, proyecto: Proyecto) -> None:
+        self.__proyecto = proyecto
 
-    @horas_asignadas.setter
-    def horas_asignadas(self, v):
-        self.__horas = numero(v, "Las horas asignadas", minimo=0, maximo=10000, estricto_minimo=True)
+    # Carga lista de clase desde BD
+    def setListaAsignaciones(self, listDB: list) -> None:
+        self.__listaAsignaciones.clear()
+        self.__listaAsignaciones.extend(listDB)
 
-    @property
-    def fecha_asignacion(self):
-        return self.__fecha
-
-    @fecha_asignacion.setter
-    def fecha_asignacion(self, v):
-        self.__fecha = parsear_fecha(v, "La fecha de asignación")
-
-    def __str__(self):
-        return f"[{self.id}] emp {self.id_empleado} -> proy {self.id_proyecto} ({self.rol_proyecto})"
+    # Limpia lista de clase
+    def clearLista(self) -> None:
+        self.__listaAsignaciones.clear()

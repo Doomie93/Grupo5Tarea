@@ -1,45 +1,67 @@
-from modelo.empleado import crear_empleado
+from dao.base_dao import BaseDAO
+from modelo.empleado import Empleado
 
-from .dao_base import DAOBase
 
+class EmpleadoDAO(BaseDAO):
 
-class DAOEmpleado(DAOBase):
-    TABLA = "empleado"
-    ENTIDAD = "un empleado"
+    # Trae todas las filas de EMPLEADO (el DTO las convierte en objetos)
+    def cargarDatos(self) -> list:
+        return self._consultar("select IDEMPLEADO, NOMBRE, APELLIDO, CORREO, FECHACONTRATO, SALARIO, "
+                               "DIRECCION, TELEFONO, IDDEPARTAMENTO from EMPLEADO order by IDEMPLEADO")
 
-    def _mapear(self, f):
-        return crear_empleado(f["tipo"], rut=f["rut"], nombre=f["nombre"], email=f["email"],
-                              salario_base=f["salario_base"], fecha_ingreso=f["fecha_ingreso"],
-                              id_departamento=f["id_departamento"], activo=f["activo"], id=f["id"])
+    # Agrega un empleado a la BD, a la lista de clase y a la lista de su departamento
+    def registrarEmpleado(self, empleado: Empleado) -> int:
+        depto = empleado.getDepartamento()
+        sql = ("insert into EMPLEADO (NOMBRE, APELLIDO, CORREO, FECHACONTRATO, SALARIO, DIRECCION, TELEFONO, IDDEPARTAMENTO) "
+               "values (%s, %s, %s, %s, %s, %s, %s, %s)")
+        res = self._ejecutar(sql, (empleado.getNombre(), empleado.getApellido(), empleado.getCorreo(),
+                                   empleado.getFechaContrato(), empleado.getSalario(), empleado.getDireccion(),
+                                   empleado.getTelefono(), depto.getId() if depto is not None else None))
+        if res > 0:
+            empleado.setId(self.getUltimoId())
+            Empleado().getListaEmpleados().append(empleado)
+            if depto is not None:
+                depto.getEmpleados().append(empleado)
+        return res
 
-    def crear(self, e):
-        e.id = self._cx.ejecutar(
-            "INSERT INTO empleado (tipo, rut, nombre, email, salario_base, fecha_ingreso, "
-            "id_departamento, activo) VALUES (?,?,?,?,?,?,?,?)",
-            (e.TIPO, e.rut, e.nombre, e.email, e.salario_base, e.fecha_ingreso.isoformat(),
-             e.id_departamento, int(e.activo))).lastrowid
-        return e
+    # Retorna la lista de clase
+    def mostrarEmpleados(self) -> list:
+        return Empleado().getListaEmpleados()
 
-    def actualizar(self, e):
-        cur = self._cx.ejecutar(
-            "UPDATE empleado SET rut=?, nombre=?, email=?, salario_base=?, fecha_ingreso=?, "
-            "id_departamento=?, activo=? WHERE id=?",
-            (e.rut, e.nombre, e.email, e.salario_base, e.fecha_ingreso.isoformat(),
-             e.id_departamento, int(e.activo), e.id))
-        self._verificar_actualizacion(cur, e.id)
+    # Busca un empleado en la lista de clase
+    def buscarEmpleado(self, idEmpleado: int) -> Empleado:
+        for emp in Empleado().getListaEmpleados():
+            if emp.getId() == idEmpleado:
+                return emp
+        return None
 
-    def listar_activos(self):
-        filas = self._cx.consultar_todos("SELECT * FROM empleado WHERE activo = 1 ORDER BY id")
-        return [self._mapear(f) for f in filas]
+    # Modifica en la BD y actualiza el objeto de la lista (el departamento se cambia desde DepartamentoDAO)
+    def modificarEmpleado(self, empleado: Empleado) -> int:
+        sql = ("update EMPLEADO set NOMBRE = %s, APELLIDO = %s, CORREO = %s, FECHACONTRATO = %s, SALARIO = %s, "
+               "DIRECCION = %s, TELEFONO = %s where IDEMPLEADO = %s")
+        res = self._ejecutar(sql, (empleado.getNombre(), empleado.getApellido(), empleado.getCorreo(),
+                                   empleado.getFechaContrato(), empleado.getSalario(), empleado.getDireccion(),
+                                   empleado.getTelefono(), empleado.getId()))
+        if res > 0:
+            actual = self.buscarEmpleado(empleado.getId())
+            if actual is not None:
+                actual.setNombre(empleado.getNombre())
+                actual.setApellido(empleado.getApellido())
+                actual.setCorreo(empleado.getCorreo())
+                actual.setFechaContrato(empleado.getFechaContrato())
+                actual.setSalario(empleado.getSalario())
+                actual.setDireccion(empleado.getDireccion())
+                actual.setTelefono(empleado.getTelefono())
+        return res
 
-    def listar_por_departamento(self, id_departamento):
-        filas = self._cx.consultar_todos(
-            "SELECT * FROM empleado WHERE id_departamento = ? ORDER BY nombre", (id_departamento,))
-        return [self._mapear(f) for f in filas]
-
-    def buscar(self, texto):
-        patron = f"%{texto.strip()}%"
-        filas = self._cx.consultar_todos(
-            "SELECT * FROM empleado WHERE nombre LIKE ? OR rut LIKE ? OR email LIKE ? ORDER BY nombre",
-            (patron, patron, patron))
-        return [self._mapear(f) for f in filas]
+    # Elimina de la BD, de la lista de clase y de la lista de su departamento
+    def eliminarEmpleado(self, idEmpleado: int) -> int:
+        actual = self.buscarEmpleado(idEmpleado)
+        res = self._ejecutar("delete from EMPLEADO where IDEMPLEADO = %s", (idEmpleado,))
+        if res > 0:
+            lista = Empleado().getListaEmpleados()
+            lista[:] = [e for e in lista if e.getId() != idEmpleado]
+            if actual is not None and actual.getDepartamento() is not None:
+                deptoEmpleados = actual.getDepartamento().getEmpleados()
+                deptoEmpleados[:] = [e for e in deptoEmpleados if e.getId() != idEmpleado]
+        return res

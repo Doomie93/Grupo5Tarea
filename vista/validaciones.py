@@ -1,96 +1,112 @@
-"""Entrada de datos por consola con validación y reintento.
-
-Cada `pedir_*` repite la pregunta hasta recibir un valor válido, así un dato
-mal digitado nunca interrumpe el programa. Las reglas de dominio (RUT, correo,
-fechas...) se reutilizan desde el paquete `modelo`, sin duplicarlas.
-"""
-import getpass
-
-from dao.excepciones import ValidacionError
-from modelo import numero, parsear_fecha
+import re
+from datetime import date, datetime
+from vista.entrada import pedir, pedirClave
 
 
-def pedir_con(mensaje, validador, defecto=None):
-    """Pide un texto y lo pasa por `validador` (que lanza ValidacionError si es inválido).
-    Si hay `defecto`, Enter lo conserva."""
-    etiqueta = f"{mensaje} [{defecto}]: " if defecto not in (None, "") else f"{mensaje}: "
+# Validacion para el ingreso de valores tipo INT (con rango opcional y valor actual opcional)
+def validaInt(txt: str, minimo: int = None, maximo: int = None, actual: int = None) -> int:
     while True:
-        txt = input(etiqueta).strip()
-        if not txt and defecto is not None:
-            return defecto
+        sufijo = f" [{actual}] (ENTER para mantener)" if actual is not None else ""
+        valor = pedir(f"{txt}{sufijo}: ").strip()
+        if valor == "" and actual is not None:
+            return actual
         try:
-            return validador(txt)
-        except ValidacionError as e:
-            print(f"   ✗ {e}")
-
-
-def pedir_texto(mensaje, minimo=1, maximo=100, defecto=None):
-    def v(t):
-        if len(t) < minimo:
-            raise ValidacionError(f"Debe tener al menos {minimo} caracteres.")
-        if len(t) > maximo:
-            raise ValidacionError(f"No puede superar los {maximo} caracteres.")
-        return t
-    return pedir_con(mensaje, v, defecto)
-
-
-def pedir_texto_opcional(mensaje, defecto=""):
-    return input(f"{mensaje} (Enter = {'mantener' if defecto else 'omitir'}): ").strip() or defecto
-
-
-def pedir_entero(mensaje, minimo=None, maximo=None, defecto=None):
-    def v(t):
-        try:
-            n = int(t)
+            numero = int(valor)
         except ValueError:
-            raise ValidacionError("Debe ingresar un número entero.")
-        if minimo is not None and n < minimo:
-            raise ValidacionError(f"Debe ser al menos {minimo}.")
-        if maximo is not None and n > maximo:
-            raise ValidacionError(f"No puede superar {maximo}.")
-        return n
-    return pedir_con(mensaje, v, defecto)
+            print("Error de ingreso, solo puedes ingresar números enteros.")
+            continue
+        if minimo is not None and numero < minimo:
+            print(f"El valor debe ser mayor o igual a {minimo}.")
+        elif maximo is not None and numero > maximo:
+            print(f"El valor debe ser menor o igual a {maximo}.")
+        else:
+            return numero
 
 
-def pedir_decimal(mensaje, minimo=0, maximo=None, estricto=False, defecto=None):
-    return pedir_con(mensaje, lambda t: numero(t, "El valor", minimo, maximo, estricto), defecto)
-
-
-def pedir_fecha(mensaje, opcional=False, defecto=None):
-    sufijo = " (AAAA-MM-DD" + (", Enter = omitir)" if opcional else ")")
-    if opcional and defecto is None:
-        return _fecha_opcional(mensaje + sufijo)
-    return pedir_con(mensaje + sufijo, lambda t: parsear_fecha(t, "La fecha"), defecto)
-
-
-def _fecha_opcional(etiqueta):
+# Validacion de textos por largo mínimo y máximo (coincide con el tamaño de las columnas de la BD)
+def validaTexto(txt: str, minimo: int, maximo: int, actual: str = None) -> str:
     while True:
-        txt = input(f"{etiqueta}: ").strip()
-        if not txt:
-            return None
+        sufijo = f" [{actual}] (ENTER para mantener)" if actual is not None else ""
+        valor = pedir(f"{txt}{sufijo}: ").strip()
+        if valor == "" and actual is not None:
+            return actual
+        if minimo <= len(valor) <= maximo:
+            return valor
+        print(f"Campo incorrecto, debe tener entre {minimo} y {maximo} caracteres.")
+
+
+def validaCorreo(actual: str = None) -> str:
+    while True:
+        sufijo = f" [{actual}] (ENTER para mantener)" if actual is not None else ""
+        valor = pedir(f"Correo (xxxx@xxxx.xx){sufijo}: ").strip()
+        if valor == "" and actual is not None:
+            return actual
+        if len(valor) <= 100 and re.fullmatch(r"[\w.+-]+@[\w-]+(\.[\w-]+)+", valor):
+            return valor
+        print("Correo inválido, use el formato nombre@dominio.cl")
+
+
+def validaTelefono(actual: str = None) -> str:
+    while True:
+        sufijo = f" [{actual}] (ENTER para mantener)" if actual is not None else ""
+        valor = pedir(f"Teléfono (8 a 14 dígitos, puede iniciar con +){sufijo}: ").strip()
+        if valor == "" and actual is not None:
+            return actual
+        if re.fullmatch(r"\+?\d{8,14}", valor):
+            return valor
+        print("Teléfono inválido, ingrese solo dígitos (8 a 14).")
+
+
+# Fecha en formato DD-MM-AAAA; si hay valor actual, ENTER lo acepta
+def validaFecha(txt: str, actual: date = None, permitirFutura: bool = True) -> date:
+    while True:
+        sufijo = f" [{actual.strftime('%d-%m-%Y')}] (ENTER para aceptar)" if actual is not None else " (DD-MM-AAAA)"
+        valor = pedir(f"{txt}{sufijo}: ").strip()
+        if valor == "" and actual is not None:
+            return actual
         try:
-            return parsear_fecha(txt)
-        except ValidacionError as e:
-            print(f"   ✗ {e}")
+            fecha = datetime.strptime(valor, "%d-%m-%Y").date()
+        except ValueError:
+            print("Fecha inválida, use el formato DD-MM-AAAA (ej: 15-03-2024).")
+            continue
+        if not permitirFutura and fecha > date.today():
+            print("La fecha no puede ser posterior a hoy.")
+            continue
+        return fecha
 
 
-def pedir_opcion(mensaje, opciones, defecto=None):
-    """Elige una opción de una lista (sin distinguir mayúsculas)."""
-    mapa = {o.upper(): o for o in opciones}
-
-    def v(t):
-        if t.upper() not in mapa:
-            raise ValidacionError(f"Opciones válidas: {', '.join(opciones)}")
-        return mapa[t.upper()]
-    return pedir_con(f"{mensaje} ({'/'.join(opciones)})", v, defecto)
+def validaNombreUsuario() -> str:
+    while True:
+        valor = pedir("Nombre de usuario (4 a 30 caracteres: letras, números, . o _): ").strip()
+        if re.fullmatch(r"[A-Za-z0-9_.]{4,30}", valor):
+            return valor
+        print("Nombre de usuario inválido.")
 
 
-def confirmar(mensaje):
-    return input(f"{mensaje} (s/N): ").strip().lower() in ("s", "si", "sí", "y", "yes")
+# Clave nueva: oculta con "*", mínimo 8 caracteres con letras y números, y debe repetirse igual
+def validaClaveNueva() -> str:
+    while True:
+        clave = pedirClave("Ingrese contraseña (mín. 8 caracteres, letras y números): ")
+        if len(clave) < 8 or len(clave) > 50 or not re.search(r"[A-Za-z]", clave) or not re.search(r"\d", clave):
+            print("Contraseña débil: use entre 8 y 50 caracteres, con al menos una letra y un número.")
+            continue
+        if clave != pedirClave("Repita la contraseña: "):
+            print("Las contraseñas no coinciden.")
+            continue
+        return clave
 
 
-def pedir_password(mensaje="Contraseña"):
-    try:
-        return getpass.getpass(f"{mensaje}: ")
-    except (EOFError, getpass.GetPassWarning):
-        return input(f"{mensaje}: ")
+# Confirmación S/N
+def validaConfirmacion(msg: str) -> bool:
+    while True:
+        resp = pedir(f"{msg} (S/N): ").strip().upper()
+        if resp in ("S", "Y"):
+            return True
+        if resp == "N":
+            return False
+        print("Opción inválida, ingrese S o N.")
+
+
+# Validador de opciones para los menús
+def validaOpc(num: int) -> int:
+    return validaInt("Ingrese una opción", 1, num)

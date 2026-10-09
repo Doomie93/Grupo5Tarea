@@ -1,114 +1,91 @@
-"""Jerarquía de empleados: clase abstracta + 3 especializaciones (herencia/polimorfismo)."""
-from abc import ABC, abstractmethod
-from datetime import date
-
-from dao.excepciones import ValidacionError
-
-from . import numero, parsear_fecha, texto_requerido, validar_email, validar_rut
+from modelo.departamento import Departamento
 
 
-class Empleado(ABC):
-    TIPO = "BASE"
+class Empleado():
 
-    def __init__(self, rut, nombre, email, salario_base, fecha_ingreso=None,
-                 id_departamento=None, activo=True, id=None):
-        self.id = id
-        self.rut = rut
-        self.nombre = nombre
-        self.email = email
-        self.salario_base = salario_base
-        self.fecha_ingreso = fecha_ingreso or date.today()
-        self.id_departamento = id_departamento
-        self.activo = bool(activo)
+    # Atributos de clase
+    __listaEmpleados = []
 
-    # --- Encapsulamiento: atributos privados + propiedades que validan ---
-    @property
-    def rut(self):
-        return self.__rut
+    # Constructor (las listas NO se cargan aquí, se cargan al iniciar la aplicación)
+    def __init__(self, idEmpleado: int = 0, nombre: str = "", apellido: str = "", correo: str = "",
+                 fechaContrato=None, salario: int = 0, direccion: str = "", telefono: str = "",
+                 departamento: Departamento = None) -> None:
+        self.__idEmpleado = idEmpleado
+        self.__nombre = nombre
+        self.__apellido = apellido
+        self.__correo = correo
+        self.__fechaContrato = fechaContrato
+        self.__salario = salario
+        self.__direccion = direccion
+        self.__telefono = telefono
+        self.__departamento = departamento
+        self.__asignaciones = []
+        self.__registros = []
 
-    @rut.setter
-    def rut(self, v):
-        self.__rut = validar_rut(v)
+    # String de la clase
+    def __str__(self) -> str:
+        fecha = self.__fechaContrato.strftime("%d-%m-%Y") if self.__fechaContrato is not None else "-"
+        depto = self.__departamento.getNombre() if self.__departamento is not None else "Sin departamento"
+        salario = f"${self.__salario:,}".replace(",", ".")
+        return (f"Id: {self.__idEmpleado} | {self.__nombre} {self.__apellido} | Correo: {self.__correo} | "
+                f"Contrato: {fecha} | Salario: {salario} | Tel: {self.__telefono} | "
+                f"Dirección: {self.__direccion} | Departamento: {depto}")
 
-    @property
-    def nombre(self):
+    # Getters
+    def getId(self) -> int:
+        return self.__idEmpleado
+    def getNombre(self) -> str:
         return self.__nombre
+    def getApellido(self) -> str:
+        return self.__apellido
+    def getCorreo(self) -> str:
+        return self.__correo
+    def getFechaContrato(self):
+        return self.__fechaContrato
+    def getSalario(self) -> int:
+        return self.__salario
+    def getDireccion(self) -> str:
+        return self.__direccion
+    def getTelefono(self) -> str:
+        return self.__telefono
+    def getDepartamento(self) -> Departamento:
+        return self.__departamento
+    def getAsignaciones(self) -> list:
+        return self.__asignaciones
+    def getRegistros(self) -> list:
+        return self.__registros
+    def getListaEmpleados(self) -> list:
+        return self.__listaEmpleados
 
-    @nombre.setter
-    def nombre(self, v):
-        self.__nombre = texto_requerido(v, "El nombre", 2, 80)
+    # Setters
+    def setId(self, idEmpleado: int) -> None:
+        self.__idEmpleado = idEmpleado
+    def setNombre(self, nombre: str) -> None:
+        self.__nombre = nombre
+    def setApellido(self, apellido: str) -> None:
+        self.__apellido = apellido
+    def setCorreo(self, correo: str) -> None:
+        self.__correo = correo
+    def setFechaContrato(self, fechaContrato) -> None:
+        self.__fechaContrato = fechaContrato
+    def setSalario(self, salario: int) -> None:
+        self.__salario = salario
+    def setDireccion(self, direccion: str) -> None:
+        self.__direccion = direccion
+    def setTelefono(self, telefono: str) -> None:
+        self.__telefono = telefono
+    def setDepartamento(self, departamento: Departamento) -> None:
+        self.__departamento = departamento
+    def setAsignaciones(self, asignaciones: list) -> None:
+        self.__asignaciones = asignaciones
+    def setRegistros(self, registros: list) -> None:
+        self.__registros = registros
 
-    @property
-    def email(self):
-        return self.__email
+    # Carga lista de clase desde BD
+    def setListaEmpleados(self, listDB: list) -> None:
+        self.__listaEmpleados.clear()
+        self.__listaEmpleados.extend(listDB)
 
-    @email.setter
-    def email(self, v):
-        self.__email = validar_email(v)
-
-    @property
-    def salario_base(self):
-        return self.__salario_base
-
-    @salario_base.setter
-    def salario_base(self, v):
-        self.__salario_base = numero(v, "El salario", minimo=0, maximo=1e9, estricto_minimo=True)
-
-    @property
-    def fecha_ingreso(self):
-        return self.__fecha_ingreso
-
-    @fecha_ingreso.setter
-    def fecha_ingreso(self, v):
-        f = parsear_fecha(v, "La fecha de ingreso")
-        if f > date.today():
-            raise ValidacionError("La fecha de ingreso no puede ser futura.")
-        self.__fecha_ingreso = f
-
-    # --- Comportamiento ---
-    @abstractmethod
-    def calcular_salario(self):
-        """Remuneración líquida estimada; cada subclase la define (polimorfismo)."""
-
-    def antiguedad_anios(self):
-        hoy = date.today()
-        f = self.fecha_ingreso
-        return hoy.year - f.year - ((hoy.month, hoy.day) < (f.month, f.day))
-
-    def __str__(self):
-        return f"[{self.id}] {self.nombre} ({self.TIPO})"
-
-
-class EmpleadoPlanta(Empleado):
-    TIPO = "PLANTA"
-
-    def calcular_salario(self):
-        return self.salario_base
-
-
-class EmpleadoHonorarios(Empleado):
-    TIPO = "HONORARIOS"
-    RETENCION = 0.1375
-
-    def calcular_salario(self):
-        return self.salario_base * (1 - self.RETENCION)
-
-
-class Gerente(Empleado):
-    TIPO = "GERENTE"
-    BONO = 0.20
-
-    def calcular_salario(self):
-        return self.salario_base * (1 + self.BONO)
-
-
-TIPOS_EMPLEADO = {c.TIPO: c for c in (EmpleadoPlanta, EmpleadoHonorarios, Gerente)}
-
-
-def crear_empleado(tipo, **datos):
-    """Fábrica: construye la subclase correcta según el tipo."""
-    try:
-        clase = TIPOS_EMPLEADO[str(tipo).upper()]
-    except KeyError:
-        raise ValidacionError(f"Tipo de empleado inválido. Opciones: {', '.join(TIPOS_EMPLEADO)}")
-    return clase(**datos)
+    # Limpia lista de clase
+    def clearLista(self) -> None:
+        self.__listaEmpleados.clear()

@@ -1,52 +1,33 @@
+from dao.base_dao import BaseDAO
 from modelo.registro_tiempo import RegistroTiempo
+from modelo.empleado import Empleado
+from modelo.proyecto import Proyecto
 
-from .dao_base import DAOBase
 
+class RegistroTiempoDAO(BaseDAO):
 
-class DAORegistro(DAOBase):
-    TABLA = "registro_tiempo"
-    ENTIDAD = "un registro de horas"
+    # Trae todas las filas de REGISTROTIEMPO (el DTO las convierte en objetos)
+    def cargarDatos(self) -> list:
+        return self._consultar("select FECHA, HORASTRABAJADAS, DESCRIPCIONTAREA, IDEMPLEADO, IDPROYECTO "
+                               "from REGISTROTIEMPO order by IDREGISTRO")
 
-    def _mapear(self, f):
-        return RegistroTiempo(f["id_asignacion"], f["fecha"], f["horas"], f["descripcion"], f["id"])
+    # Agrega el registro a la BD, a la lista de clase y a las listas del empleado y del proyecto
+    def registrarHorasTrabajadas(self, empleado: Empleado, proyecto: Proyecto, fecha, horas: int, descripcion: str) -> int:
+        res = self._ejecutar("insert into REGISTROTIEMPO (FECHA, HORASTRABAJADAS, DESCRIPCIONTAREA, IDEMPLEADO, IDPROYECTO) "
+                             "values (%s, %s, %s, %s, %s)",
+                             (fecha, horas, descripcion, empleado.getId(), proyecto.getId()))
+        if res > 0:
+            registro = RegistroTiempo(fecha, horas, descripcion, empleado, proyecto)
+            RegistroTiempo().getListaRegistros().append(registro)
+            empleado.getRegistros().append(registro)
+            proyecto.getRegistros().append(registro)
+        return res
 
-    def crear(self, r):
-        r.id = self._cx.ejecutar(
-            "INSERT INTO registro_tiempo (id_asignacion, fecha, horas, descripcion) VALUES (?,?,?,?)",
-            (r.id_asignacion, r.fecha.isoformat(), r.horas, r.descripcion)).lastrowid
-        return r
+    def listarRegistrosTiempo(self) -> list:
+        return RegistroTiempo().getListaRegistros()
 
-    def actualizar(self, r):
-        cur = self._cx.ejecutar(
-            "UPDATE registro_tiempo SET fecha=?, horas=?, descripcion=? WHERE id=?",
-            (r.fecha.isoformat(), r.horas, r.descripcion, r.id))
-        self._verificar_actualizacion(cur, r.id)
+    def listarRegistrosTiempoPorEmpleado(self, empleado: Empleado) -> list:
+        return empleado.getRegistros()
 
-    def listar_por_asignacion(self, id_asignacion):
-        filas = self._cx.consultar_todos(
-            "SELECT * FROM registro_tiempo WHERE id_asignacion = ? ORDER BY fecha, id", (id_asignacion,))
-        return [self._mapear(f) for f in filas]
-
-    def total_horas_asignacion(self, id_asignacion):
-        return self._cx.consultar_uno(
-            "SELECT COALESCE(SUM(horas), 0) AS t FROM registro_tiempo WHERE id_asignacion = ?",
-            (id_asignacion,))["t"]
-
-    # ---------- Reportes ----------
-    def horas_por_proyecto(self):
-        return [dict(f) for f in self._cx.consultar_todos(
-            "SELECT p.nombre AS proyecto, p.estado, COALESCE(SUM(r.horas), 0) AS horas, "
-            "COALESCE((SELECT SUM(horas_asignadas) FROM asignacion_proyecto WHERE id_proyecto = p.id), 0) "
-            "AS horas_asignadas "
-            "FROM proyecto p "
-            "LEFT JOIN asignacion_proyecto a ON a.id_proyecto = p.id "
-            "LEFT JOIN registro_tiempo r ON r.id_asignacion = a.id "
-            "GROUP BY p.id ORDER BY horas DESC")]
-
-    def horas_por_empleado(self):
-        return [dict(f) for f in self._cx.consultar_todos(
-            "SELECT e.nombre AS empleado, COALESCE(SUM(r.horas), 0) AS horas "
-            "FROM empleado e "
-            "LEFT JOIN asignacion_proyecto a ON a.id_empleado = e.id "
-            "LEFT JOIN registro_tiempo r ON r.id_asignacion = a.id "
-            "WHERE e.activo = 1 GROUP BY e.id ORDER BY horas DESC")]
+    def listarRegistrosTiempoPorProyecto(self, proyecto: Proyecto) -> list:
+        return proyecto.getRegistros()

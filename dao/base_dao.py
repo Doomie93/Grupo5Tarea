@@ -24,6 +24,18 @@ class BaseDAO():
     def _abrir(self) -> Conex:
         return Conex(config.HOST, config.USER, config.PASSWD, self._database)
 
+    # Verifica que se pueda entrar a la base de datos (debe existir de antes, ver mydb_ecotech.txt)
+    def probarConexion(self) -> bool:
+        c = self._abrir()
+        if not c.estaConectado():
+            print("-No se pudo conectar a la base de datos-")
+            print("-Verifique que MySQL esté activo en XAMPP, que la base exista (script mydb_ecotech.txt)")
+            print(" y que las credenciales de conex/config.py sean correctas-")
+            print(f"-Detalle: {c.getError()}-")
+            return False
+        c.closeConex()
+        return True
+
     # Clasifica el error de MySQL según su código
     @staticmethod
     def _clasificarError(ex: Exception) -> int:

@@ -1,14 +1,14 @@
 from vista.entrada import bloquearAtajos, pedir, esFinDeEntrada, MSG_ATAJO
-from vista.menus import prepararBD, validarLogin, inicial
+from vista.menus import probarConexion, validarLogin, inicial
 
 MAX_INTENTOS = 3
 
 
-# Prepara la BD con el usuario por defecto de XAMPP; permite reintentar si MySQL aún no está activo
+# Verifica la conexión con la BD ya existente; permite reintentar si MySQL aún no está activo
 def conectarBD() -> bool:
     while True:
         try:
-            if prepararBD():
+            if probarConexion():
                 return True
             if pedir("Presione ENTER para reintentar o escriba 'salir': ").strip().lower() == "salir":
                 return False

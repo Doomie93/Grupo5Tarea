@@ -6,6 +6,9 @@ from dao.dao_empleado import EmpleadoDAO
 
 class UsuarioDTO(BaseDTO):
 
+    def probarConexion(self) -> bool:
+        return UsuarioDAO().probarConexion()
+
     def validarAcceso(self, nombreUsuario: str, clave: str) -> Usuario:
         return UsuarioDAO().validarAcceso(nombreUsuario, clave)
 

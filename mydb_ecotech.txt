@@ -1,0 +1,91 @@
+---CREACIÓN DE LA BASE DE DATOS Y TABLAS (ejecutar una sola vez en phpMyAdmin > pestaña SQL)
+
+create database if not exists ecotech_db character set utf8mb4 collate utf8mb4_general_ci;
+use ecotech_db;
+
+create table DEPARTAMENTO (
+IDDEPARTAMENTO int not null auto_increment,
+NOMBRE varchar(50) not null,
+IDGERENTE int null,
+primary key (IDDEPARTAMENTO),
+unique (NOMBRE) );
+
+create table EMPLEADO (
+IDEMPLEADO int not null auto_increment,
+NOMBRE varchar(50) not null,
+APELLIDO varchar(50) not null,
+CORREO varchar(100) not null,
+FECHACONTRATO date not null,
+SALARIO int not null,
+DIRECCION varchar(100) not null,
+TELEFONO varchar(15) not null,
+IDDEPARTAMENTO int null,
+primary key (IDEMPLEADO),
+unique (CORREO) );
+
+create table USUARIO (
+IDUSUARIO int not null auto_increment,
+NOMBREUSUARIO varchar(30) not null,
+CLAVE varchar(200) not null,
+ROL varchar(20) not null,
+IDEMPLEADO int not null,
+primary key (IDUSUARIO),
+unique (NOMBREUSUARIO),
+unique (IDEMPLEADO) );
+
+create table PROYECTO (
+IDPROYECTO int not null auto_increment,
+NOMBRE varchar(80) not null,
+DESCRIPCION varchar(200) not null,
+FECHAINICIO date not null,
+primary key (IDPROYECTO),
+unique (NOMBRE) );
+
+create table ASIGNACIONPROYECTO (
+IDASIGNACION int not null auto_increment,
+FECHAASIGNACION date not null,
+IDEMPLEADO int not null,
+IDPROYECTO int not null,
+primary key (IDASIGNACION),
+unique (IDEMPLEADO, IDPROYECTO) );
+
+create table REGISTROTIEMPO (
+IDREGISTRO int not null auto_increment,
+FECHA date not null,
+HORASTRABAJADAS int not null,
+DESCRIPCIONTAREA varchar(200) not null,
+IDEMPLEADO int not null,
+IDPROYECTO int not null,
+primary key (IDREGISTRO) );
+
+---RELACIONES (claves foráneas)
+
+alter table EMPLEADO
+	add constraint FK_EMPLEADO_DEPARTAMENTO foreign key (IDDEPARTAMENTO) references DEPARTAMENTO (IDDEPARTAMENTO) on delete restrict on update restrict;
+
+alter table DEPARTAMENTO
+	add constraint FK_DEPARTAMENTO_GERENTE foreign key (IDGERENTE) references EMPLEADO (IDEMPLEADO) on delete restrict on update restrict;
+
+alter table USUARIO
+	add constraint FK_USUARIO_EMPLEADO foreign key (IDEMPLEADO) references EMPLEADO (IDEMPLEADO) on delete restrict on update restrict;
+
+alter table ASIGNACIONPROYECTO
+	add constraint FK_ASIGNACION_EMPLEADO foreign key (IDEMPLEADO) references EMPLEADO (IDEMPLEADO) on delete restrict on update restrict;
+
+alter table ASIGNACIONPROYECTO
+	add constraint FK_ASIGNACION_PROYECTO foreign key (IDPROYECTO) references PROYECTO (IDPROYECTO) on delete restrict on update restrict;
+
+alter table REGISTROTIEMPO
+	add constraint FK_REGISTRO_EMPLEADO foreign key (IDEMPLEADO) references EMPLEADO (IDEMPLEADO) on delete restrict on update restrict;
+
+alter table REGISTROTIEMPO
+	add constraint FK_REGISTRO_PROYECTO foreign key (IDPROYECTO) references PROYECTO (IDPROYECTO) on delete restrict on update restrict;
+
+---USUARIO INICIAL (reemplaza los valores entre comillas por los tuyos y ejecuta estas dos sentencias)
+---El usuario inicia sesión con NOMBREUSUARIO y la clave; la clave se guarda encriptada con SHA2 (nunca en texto plano)
+
+insert into EMPLEADO (NOMBRE, APELLIDO, CORREO, FECHACONTRATO, SALARIO, DIRECCION, TELEFONO, IDDEPARTAMENTO)
+values ('TuNombre', 'TuApellido', 'tucorreo@dominio.cl', curdate(), 0, 'Tu direccion', '912345678', null);
+
+insert into USUARIO (NOMBREUSUARIO, CLAVE, ROL, IDEMPLEADO)
+values ('tuusuario', SHA2('TuClave123', 256), 'ADMINISTRADOR', last_insert_id());

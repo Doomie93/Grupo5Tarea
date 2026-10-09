@@ -1,6 +1,5 @@
 import sys
 from datetime import date
-from controlador.dto_inicial import InicializadorDTO
 from controlador.dto_departamento import DepartamentoDTO
 from controlador.dto_empleado import EmpleadoDTO
 from controlador.dto_proyecto import ProyectoDTO
@@ -27,8 +26,8 @@ def listar(lista: list, vacio: str) -> None:
         print(vacio)
 
 
-def prepararBD() -> bool:
-    return InicializadorDTO().prepararBaseDatos()
+def probarConexion() -> bool:
+    return UsuarioDTO().probarConexion()
 
 
 # Carga las listas de clase desde la BD (en este orden por las relaciones entre objetos)

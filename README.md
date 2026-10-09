@@ -9,8 +9,8 @@ Proyecto de Programación Orientada a Objeto Seguro.
 Edita en archivo `mydb_ecotech.txt` los 2 inserts con tus datos:
 
       insert into EMPLEADO (NOMBRE, APELLIDO, CORREO, FECHACONTRATO, SALARIO, DIRECCION, TELEFONO, IDDEPARTAMENTO)
-      values ('Joakin', 'Briones', 'correo@gmail.com', curdate(), 9999999999, 'Recoleta', '123456789', null);
-               ^^^^^^    ^^^^^^^    ^^^^^^^^^^^^^^^^              ^^^^^^^^^^   ^^^^^^^^    ^^^^^^^^^
+      values ('Joakin', 'Briones', 'correo@gmail.com', curdate(), 99999, 'Recoleta', '123456789', null);
+               ^^^^^^    ^^^^^^^    ^^^^^^^^^^^^^^^^              ^^^^^   ^^^^^^^^    ^^^^^^^^^
       insert into USUARIO (NOMBREUSUARIO, CLAVE, ROL, IDEMPLEADO)
       values ('pepe', SHA2('12345', 256), 'ADMINISTRADOR', last_insert_id());
                ^^^^         ^^^^^

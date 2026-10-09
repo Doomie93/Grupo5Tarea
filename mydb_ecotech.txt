@@ -85,7 +85,7 @@ alter table REGISTROTIEMPO
 ---El usuario inicia sesión con NOMBREUSUARIO y la clave; la clave se guarda encriptada con SHA2 (nunca en texto plano)
 
 insert into EMPLEADO (NOMBRE, APELLIDO, CORREO, FECHACONTRATO, SALARIO, DIRECCION, TELEFONO, IDDEPARTAMENTO)
-values ('TuNombre', 'TuApellido', 'tucorreo@dominio.cl', curdate(), 0, 'Tu direccion', '912345678', null);
+values ('Joakin', 'Briones', 'correo@gmail.com', curdate(), 9999999999, 'Recoleta', '123456789', null);
 
 insert into USUARIO (NOMBREUSUARIO, CLAVE, ROL, IDEMPLEADO)
-values ('tuusuario', SHA2('TuClave123', 256), 'ADMINISTRADOR', last_insert_id());
+values ('pepe', SHA2('12345', 256), 'ADMINISTRADOR', last_insert_id());

@@ -3,7 +3,18 @@ import os
 import signal
 import sys
 
+if os.name == "nt":
+    import msvcrt          # Windows
+else:
+    import termios         # Linux / macOS
+    import tty
+
 MSG_ATAJO = "-Acción no permitida: para salir use la opción 'Salir' o 'Volver' del menú-"
+
+# Teclas especiales que reconoce la lectura de la contraseña
+ENTER = ("\r", "\n")              # Windows entrega \r y Unix puede entregar \r o \n
+RETROCESO = ("\b", "\x7f")        # tecla de borrar: Windows entrega \b y Unix \x7f
+BORRAR_ASTERISCO = "\b \b"        # retrocede el cursor, tapa el * con un espacio y retrocede de nuevo
 
 
 # Indica si la entrada estándar se cerró (ejecución sin consola interactiva)
@@ -11,15 +22,13 @@ def esFinDeEntrada(ex: BaseException) -> bool:
     return isinstance(ex, EOFError) and not sys.stdin.isatty()
 
 
-# Ignora las señales que cerrarían o suspenderían el programa (Ctrl+Z, Ctrl+\ y Ctrl+Pausa)
+# Ignora los atajos que cerrarían o suspenderían el programa, según el sistema operativo
 def bloquearAtajos() -> None:
-    for nombre in ("SIGTSTP", "SIGQUIT", "SIGBREAK"):
-        senal = getattr(signal, nombre, None)
-        if senal is not None:
-            try:
-                signal.signal(senal, signal.SIG_IGN)
-            except (ValueError, OSError):
-                pass
+    if os.name == "nt":
+        signal.signal(signal.SIGBREAK, signal.SIG_IGN)      # Ctrl+Pausa
+    else:
+        signal.signal(signal.SIGTSTP, signal.SIG_IGN)       # Ctrl+Z
+        signal.signal(signal.SIGQUIT, signal.SIG_IGN)       # Ctrl+\
 
 
 # input() que no deja salir con Ctrl+C / Ctrl+Z / Ctrl+D: avisa y vuelve a preguntar
@@ -35,79 +44,46 @@ def pedir(prompt: str = "") -> str:
             print("\n" + MSG_ATAJO)
 
 
-# Lee una clave mostrando "*" por cada carácter escrito
+# Pide la contraseña y la retorna. Prepara la consola según el sistema operativo
+# para que lo escrito no se muestre; el "*" lo dibuja _leerClave.
 def pedirClave(prompt: str = "Ingrese contraseña: ") -> str:
     if not sys.stdin.isatty():
-        # Sin consola real (ej. IDLE o entrada redirigida) no se puede controlar el eco
+        # Sin consola real (ej. IDLE o entrada redirigida) no se puede ocultar con "*"
         return getpass.getpass(prompt)
-    sys.stdout.write(prompt)
-    sys.stdout.flush()
+    print(prompt, end="", flush=True)
     if os.name == "nt":
-        return _leerClaveWindows()
-    return _leerClaveUnix()
-
-
-def _leerClaveWindows() -> str:
-    import msvcrt
-    chars = []
-    while True:
+        clave = _leerClave()
+    else:
+        fd = sys.stdin.fileno()
+        configuracionOriginal = termios.tcgetattr(fd)
         try:
-            ch = msvcrt.getwch()
-        except KeyboardInterrupt:
-            continue
-        if ch in ("\r", "\n"):
-            sys.stdout.write("\n")
-            sys.stdout.flush()
-            return "".join(chars)
-        if ch in ("\x00", "\xe0"):          # teclas especiales (flechas, F1...): se descarta la segunda parte
-            msvcrt.getwch()
-        elif ch == "\x08":                  # retroceso
-            if chars:
-                chars.pop()
-                sys.stdout.write("\b \b")
-                sys.stdout.flush()
-        elif ch in ("\x03", "\x1a", "\x04", "\x1b"):   # Ctrl+C, Ctrl+Z, Ctrl+D, ESC: se ignoran
-            continue
-        elif ch.isprintable():
-            chars.append(ch)
-            sys.stdout.write("*")
-            sys.stdout.flush()
+            tty.setraw(fd)      # en este modo Ctrl+C y Ctrl+Z llegan como teclas normales
+            clave = _leerClave()
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, configuracionOriginal)
+    print()
+    return clave
 
 
-def _leerClaveUnix() -> str:
-    import select
-    import termios
-    import tty
-    fd = sys.stdin.fileno()
-    anterior = termios.tcgetattr(fd)
-    chars = []
-    try:
-        tty.setraw(fd)      # modo "raw": Ctrl+C y Ctrl+Z llegan como caracteres, no como señales
-        while True:
-            b = os.read(fd, 1)
-            if not b:
-                continue
-            n = b[0]
-            if n in (13, 10):                       # ENTER
-                sys.stdout.write("\r\n")
-                sys.stdout.flush()
-                return "".join(chars)
-            if n in (127, 8):                       # retroceso
-                if chars:
-                    chars.pop()
-                    sys.stdout.write("\b \b")
-                    sys.stdout.flush()
-            elif n == 27:                           # ESC / flechas: se descarta la secuencia completa
-                while select.select([fd], [], [], 0.02)[0]:
-                    os.read(fd, 1)
-            elif n < 32:                            # Ctrl+C, Ctrl+Z, Ctrl+D, etc.: se ignoran
-                continue
-            else:
-                extra = 1 if 0xC0 <= n < 0xE0 else 2 if 0xE0 <= n < 0xF0 else 3 if n >= 0xF0 else 0
-                for _ in range(extra):
-                    b += os.read(fd, 1)
-                chars.append(b.decode("utf-8", errors="ignore"))
-                sys.stdout.write("*")
-                sys.stdout.flush()
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, anterior)
+# Lee una tecla sin mostrarla en pantalla
+def _leerTecla() -> str:
+    if os.name == "nt":
+        return msvcrt.getwch()
+    return sys.stdin.read(1)
+
+
+# Lee la contraseña tecla por tecla: la va guardando y muestra un "*" por cada carácter
+def _leerClave() -> str:
+    clave = ""
+    while True:
+        tecla = _leerTecla()
+        if tecla in ENTER:
+            return clave
+        if tecla in RETROCESO:
+            if clave != "":
+                clave = clave[:-1]
+                print(BORRAR_ASTERISCO, end="", flush=True)
+        elif tecla.isprintable():
+            clave = clave + tecla
+            print("*", end="", flush=True)
+        # cualquier otra tecla (Ctrl+C, Ctrl+Z, etc.) se ignora

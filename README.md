@@ -1,4 +1,4 @@
-# Tarea culia
+# ECOTECH
 Proyecto de Programación Orientada a Objeto Seguro.
 ### Requerimientos
 - `computador`

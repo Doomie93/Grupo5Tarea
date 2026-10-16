@@ -6,7 +6,7 @@ from controlador.dto_proyecto import ProyectoDTO
 from controlador.dto_asignacion import AsignacionProyectoDTO
 from controlador.dto_registro import RegistroTiempoDTO
 from controlador.dto_usuario import UsuarioDTO
-from vista.entrada import pedir, pedirClave, MSG_ATAJO
+from vista.entrada import pedir, pedirClave, MSG_ATAJO, OperacionCancelada
 from vista.validaciones import (validaInt, validaTexto, validaCorreo, validaTelefono, validaFecha,
                                 validaNombreUsuario, validaClaveNueva, validaConfirmacion, validaOpc)
 
@@ -43,8 +43,8 @@ def cargaInicial() -> None:
 
 # Login: la contraseña se oculta con "*"
 def validarLogin():
-    nombre = pedir("Ingrese usuario: ").strip()
-    clave = pedirClave("Ingrese contraseña: ")
+    nombre = pedir("Ingrese usuario (escriba 'cancelar' para cerrar el programa): ").strip()
+    clave = pedirClave("Ingrese contraseña (ENTER vacío para cerrar el programa): ")
     return UsuarioDTO().validarAcceso(nombre, clave)
 
 
@@ -345,10 +345,13 @@ def ejecutarMenu(nombre: str, opciones: list, textoSalida: str = "Volver al Menu
             for i, (texto, _) in enumerate(opciones, start=1):
                 print(f"{i}. {texto}")
             print(f"{len(opciones) + 1}. {textoSalida}")
+            print("\n(En cualquier ingreso de datos escriba 'cancelar' para volver a este menú)")
             opc = validaOpc(len(opciones) + 1)
             if opc == len(opciones) + 1:
                 break
             opciones[opc - 1][1]()
+        except OperacionCancelada:
+            print("\n-Operación cancelada-")
         except KeyboardInterrupt:
             print("\n" + MSG_ATAJO)
         except EOFError:

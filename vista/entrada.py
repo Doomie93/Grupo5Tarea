@@ -11,6 +11,14 @@ else:
 
 MSG_ATAJO = "-Acción no permitida: para salir use la opción 'Salir' o 'Volver' del menú-"
 
+CANCELAR = "cancelar"       # palabra que escribe el usuario para cancelar la acción en curso
+
+
+# Se lanza cuando el usuario cancela; los menús la atrapan y vuelven a mostrar el menú
+class OperacionCancelada(Exception):
+    pass
+
+
 # Teclas especiales que reconoce la lectura de la contraseña
 ENTER = ("\r", "\n")              # Windows entrega \r y Unix puede entregar \r o \n
 RETROCESO = ("\b", "\x7f")        # tecla de borrar: Windows entrega \b y Unix \x7f
@@ -31,25 +39,39 @@ def bloquearAtajos() -> None:
         signal.signal(signal.SIGQUIT, signal.SIG_IGN)       # Ctrl+\
 
 
-# input() que no deja salir con Ctrl+C / Ctrl+Z / Ctrl+D: avisa y vuelve a preguntar
+# input() que no deja salir con Ctrl+C / Ctrl+Z / Ctrl+D (avisa y vuelve a preguntar)
+# y que cancela la acción en curso si el usuario escribe "cancelar"
 def pedir(prompt: str = "") -> str:
     while True:
         try:
-            return input(prompt)
+            texto = input(prompt)
         except KeyboardInterrupt:
             print("\n" + MSG_ATAJO)
         except EOFError:
             if not sys.stdin.isatty():
                 raise
             print("\n" + MSG_ATAJO)
+        else:
+            if texto.strip().lower() == CANCELAR:
+                raise OperacionCancelada()
+            return texto
 
 
-# Pide la contraseña y la retorna. Prepara la consola según el sistema operativo
-# para que lo escrito no se muestre; el "*" lo dibuja _leerClave.
-def pedirClave(prompt: str = "Ingrese contraseña: ") -> str:
-    if not sys.stdin.isatty():
+# Pide la contraseña y la retorna. Si el usuario presiona ENTER sin escribir nada, cancela.
+def pedirClave(prompt: str = "Ingrese contraseña (ENTER vacío para cancelar): ") -> str:
+    if sys.stdin.isatty():
+        clave = _pedirClaveOculta(prompt)
+    else:
         # Sin consola real (ej. IDLE o entrada redirigida) no se puede ocultar con "*"
-        return getpass.getpass(prompt)
+        clave = getpass.getpass(prompt)
+    if clave == "":
+        raise OperacionCancelada()
+    return clave
+
+
+# Prepara la consola según el sistema operativo para que lo escrito no se muestre;
+# el "*" lo dibuja _leerClave.
+def _pedirClaveOculta(prompt: str) -> str:
     print(prompt, end="", flush=True)
     if os.name == "nt":
         clave = _leerClave()

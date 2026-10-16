@@ -86,11 +86,11 @@ def validaNombreUsuario() -> str:
 # Clave nueva: oculta con "*", mínimo 8 caracteres con letras y números, y debe repetirse igual
 def validaClaveNueva() -> str:
     while True:
-        clave = pedirClave("Ingrese contraseña (mín. 8 caracteres, letras y números): ")
+        clave = pedirClave("Ingrese contraseña (mín. 8 caracteres, letras y números; ENTER vacío para cancelar): ")
         if len(clave) < 8 or len(clave) > 50 or not re.search(r"[A-Za-z]", clave) or not re.search(r"\d", clave):
             print("Contraseña débil: use entre 8 y 50 caracteres, con al menos una letra y un número.")
             continue
-        if clave != pedirClave("Repita la contraseña: "):
+        if clave != pedirClave("Repita la contraseña (ENTER vacío para cancelar): "):
             print("Las contraseñas no coinciden.")
             continue
         return clave

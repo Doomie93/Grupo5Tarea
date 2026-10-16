@@ -1,4 +1,4 @@
-from vista.entrada import bloquearAtajos, pedir, esFinDeEntrada, MSG_ATAJO
+from vista.entrada import bloquearAtajos, pedir, esFinDeEntrada, MSG_ATAJO, OperacionCancelada
 from vista.menus import probarConexion, validarLogin, inicial
 
 MAX_INTENTOS = 3
@@ -10,15 +10,17 @@ def conectarBD() -> bool:
         try:
             if probarConexion():
                 return True
-            if pedir("Presione ENTER para reintentar o escriba 'salir': ").strip().lower() == "salir":
-                return False
+            pedir("Presione ENTER para reintentar o escriba 'cancelar' para salir: ")
+        except OperacionCancelada:
+            return False
         except (Exception, KeyboardInterrupt) as ex:
             if esFinDeEntrada(ex):
                 return False
             print(MSG_ATAJO if isinstance(ex, KeyboardInterrupt) else f"-Error inesperado: {ex}-")
 
 
-# Login con 3 intentos; Ctrl+C / errores no cierran el programa ni cuentan como intento
+# Login con 3 intentos; Ctrl+C / errores no cierran el programa ni cuentan como intento.
+# Escribir "cancelar" (o dejar la contraseña vacía) cierra el programa.
 def login():
     intentos = 0
     while intentos < MAX_INTENTOS:
@@ -28,6 +30,9 @@ def login():
                 return usuario
             intentos += 1
             print(f"-Usuario o Contraseña incorrecta- (intento {intentos} de {MAX_INTENTOS})")
+        except OperacionCancelada:
+            print("-Inicio de sesión cancelado-")
+            return None
         except (Exception, KeyboardInterrupt) as ex:
             if esFinDeEntrada(ex):
                 return None

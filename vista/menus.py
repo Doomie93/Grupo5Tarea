@@ -103,6 +103,9 @@ def eliminarDepto() -> None:
     depto = seleccionarDepto()
     if depto is None:
         return
+    if len(depto.getEmpleados()) > 0:
+        return print(f"No se puede eliminar: el departamento tiene {len(depto.getEmpleados())} empleado(s). "
+                     "Reasígnelos a otro departamento antes de eliminarlo.")
     if validaConfirmacion("¿Estas seguro que deseas eliminar el Departamento?"):
         print(DepartamentoDTO().delDepto(depto.getId()))
     else:

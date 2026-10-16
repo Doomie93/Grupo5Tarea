@@ -1,5 +1,3 @@
----CREACIÓN DE LA BASE DE DATOS Y TABLAS (ejecutar una sola vez en phpMyAdmin > pestaña SQL)
-
 create database if not exists ecotech_db character set utf8mb4 collate utf8mb4_general_ci;
 use ecotech_db;
 
@@ -58,8 +56,6 @@ IDEMPLEADO int not null,
 IDPROYECTO int not null,
 primary key (IDREGISTRO) );
 
----RELACIONES (claves foráneas)
-
 alter table EMPLEADO
 	add constraint FK_EMPLEADO_DEPARTAMENTO foreign key (IDDEPARTAMENTO) references DEPARTAMENTO (IDDEPARTAMENTO) on delete restrict on update restrict;
 
@@ -80,9 +76,6 @@ alter table REGISTROTIEMPO
 
 alter table REGISTROTIEMPO
 	add constraint FK_REGISTRO_PROYECTO foreign key (IDPROYECTO) references PROYECTO (IDPROYECTO) on delete restrict on update restrict;
-
----USUARIO INICIAL (reemplaza los valores entre comillas por los tuyos y ejecuta estas dos sentencias)
----El usuario inicia sesión con NOMBREUSUARIO y la clave; la clave se guarda encriptada con SHA2 (nunca en texto plano)
 
 insert into EMPLEADO (NOMBRE, APELLIDO, CORREO, FECHACONTRATO, SALARIO, DIRECCION, TELEFONO, IDDEPARTAMENTO)
 values ('Joakin', 'Briones', 'correo@gmail.com', curdate(), 99999, 'Recoleta', '123456789', null);

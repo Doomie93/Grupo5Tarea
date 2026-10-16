@@ -60,3 +60,6 @@ Modifique el nombre de usuario y la contraseña según sus preferencias. La func
 Una vez ejecutado el script, compruebe que las tablas se hayan creado correctamente y que los registros del empleado y del usuario estén presentes en la base de datos.
 
 Con estos pasos, la base de datos quedará preparada para utilizarse con el proyecto ECOTECH.
+
+### 6. Diagrama
+![screen](diagrama_clases.png)

@@ -10,19 +10,35 @@ class EmpleadoDAO(BaseDAO):
         return self._consultar("select IDEMPLEADO, NOMBRE, APELLIDO, CORREO, CORREOHASH, FECHACONTRATO, SALARIO, "
                                "DIRECCION, TELEFONO, IDDEPARTAMENTO from EMPLEADO order by IDEMPLEADO")
 
-    # Cifra los datos que aún estén en claro en la BD (por ejemplo los empleados creados con el script SQL).
-    # Es seguro ejecutarlo varias veces: la app siempre guarda las tres columnas cifradas, así que una fila con el
-    # correo en claro es una fila pendiente. Retorna cuántas filas cifró.
+    # Cifra los datos que aún estén en claro en la BD (por ejemplo los empleados creados con el script SQL o
+    # los teléfonos de una base creada antes de cifrar ese campo). Cada columna se revisa por separado y solo
+    # se cifra si todavía está en claro. Es seguro ejecutarlo varias veces. Retorna cuántas filas actualizó.
     def cifrarPendientes(self) -> int:
-        filas = self._consultar("select IDEMPLEADO, CORREO, SALARIO, DIRECCION from EMPLEADO") or []
+        filas = self._consultar("select IDEMPLEADO, CORREO, CORREOHASH, SALARIO, DIRECCION, TELEFONO "
+                                "from EMPLEADO") or []
         total = 0
         for f in filas:
-            if cifrado.estaCifrado(str(f["CORREO"])):
+            correo = str(f["CORREO"])
+            correoHash = f["CORREOHASH"]
+            salario = str(f["SALARIO"])
+            direccion = str(f["DIRECCION"])
+            telefono = str(f["TELEFONO"])
+            if (cifrado.estaCifrado(correo) and cifrado.estaCifrado(salario)
+                    and cifrado.estaCifrado(direccion) and cifrado.estaCifrado(telefono)):
                 continue
+            if not cifrado.estaCifrado(correo):
+                correoHash = cifrado.huellaCorreo(correo)
+                correo = cifrado.cifrar(correo)
+            if not cifrado.estaCifrado(salario):
+                salario = cifrado.cifrar(salario)
+            if not cifrado.estaCifrado(direccion):
+                direccion = cifrado.cifrar(direccion)
+            if not cifrado.estaCifrado(telefono):
+                telefono = cifrado.cifrar(telefono)
             res = self._ejecutar(
-                "update EMPLEADO set CORREO = %s, CORREOHASH = %s, SALARIO = %s, DIRECCION = %s where IDEMPLEADO = %s",
-                (cifrado.cifrar(f["CORREO"]), cifrado.huellaCorreo(f["CORREO"]), cifrado.cifrar(f["SALARIO"]),
-                 cifrado.cifrar(f["DIRECCION"]), f["IDEMPLEADO"]))
+                "update EMPLEADO set CORREO = %s, CORREOHASH = %s, SALARIO = %s, DIRECCION = %s, TELEFONO = %s "
+                "where IDEMPLEADO = %s",
+                (correo, correoHash, salario, direccion, telefono, f["IDEMPLEADO"]))
             total += 1 if res > 0 else 0
         return total
 
@@ -34,7 +50,7 @@ class EmpleadoDAO(BaseDAO):
         res = self._ejecutar(sql, (empleado.getNombre(), empleado.getApellido(), empleado.getCorreoCifrado(),
                                    empleado.getCorreoHash(), empleado.getFechaContrato(),
                                    empleado.getSalarioCifrado(), empleado.getDireccionCifrada(),
-                                   empleado.getTelefono(), depto.getId() if depto is not None else None))
+                                   empleado.getTelefonoCifrado(), depto.getId() if depto is not None else None))
         if res > 0:
             empleado.setId(self.getUltimoId())
             Empleado().getListaEmpleados().append(empleado)
@@ -60,7 +76,7 @@ class EmpleadoDAO(BaseDAO):
         res = self._ejecutar(sql, (empleado.getNombre(), empleado.getApellido(), empleado.getCorreoCifrado(),
                                    empleado.getCorreoHash(), empleado.getFechaContrato(),
                                    empleado.getSalarioCifrado(), empleado.getDireccionCifrada(),
-                                   empleado.getTelefono(), empleado.getId()))
+                                   empleado.getTelefonoCifrado(), empleado.getId()))
         if res > 0:
             actual = self.buscarEmpleado(empleado.getId())
             if actual is not None:
@@ -68,7 +84,6 @@ class EmpleadoDAO(BaseDAO):
                 actual.setApellido(empleado.getApellido())
                 actual.setFechaContrato(empleado.getFechaContrato())
                 actual.copiarDatosCifrados(empleado)
-                actual.setTelefono(empleado.getTelefono())
         return res
 
     # Elimina de la BD, de la lista de clase y de la lista de su departamento

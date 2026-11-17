@@ -67,8 +67,8 @@ El script crea tres usuarios de ejemplo (cambie las claves antes de usar el sist
 
 | Usuario | Clave | Rol | Qué puede hacer |
 |---|---|---|---|
-| `pepe` (editable, ver sección 2) | `12345` | ADMINISTRADOR | CRUD completo y registrar usuarios. **No** accede a las APIs y ve correo, sueldo y dirección **encriptados**. |
-| `gerente_rrhh` | `Gerente2026` | GERENTE_RRHH | Departamentos, empleados (ve correo, sueldo y dirección), asignaciones, horas, proyectos (consulta) y **Servicios Externos (APIs)**. |
+| `pepe` (editable, ver sección 2) | `12345` | ADMINISTRADOR | CRUD completo y registrar usuarios. **No** accede a las APIs y ve correo, sueldo, dirección y teléfono **encriptados**. |
+| `gerente_rrhh` | `Gerente2026` | GERENTE_RRHH | Departamentos, empleados (ve correo, sueldo, dirección y teléfono), asignaciones, horas, proyectos (consulta) y **Servicios Externos (APIs)**. |
 | `empleado1` | `Empleado2026` | EMPLEADO | Ver proyectos, sus asignaciones y registrar/ver sus propias horas. |
 
 Si ya había creado la base con una versión anterior del script, ejecute en la pestaña SQL de phpMyAdmin, **una sola vez y en este orden**: `actualizacion_cifrado.txt` (columnas para datos cifrados) y luego `actualizacion_unidad3.txt` (tabla `INDICADOR` y los dos usuarios nuevos; omítalo si ya lo había ejecutado). Después ejecute `python cifrar_datos.py` para cifrar los datos que ya existían.

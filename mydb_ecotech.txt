@@ -8,7 +8,7 @@ IDGERENTE int null,
 primary key (IDDEPARTAMENTO),
 unique (NOMBRE) );
 
--- CORREO, SALARIO y DIRECCION se guardan CIFRADOS por la aplicación (la huella CORREOHASH mantiene el correo único).
+-- CORREO, SALARIO, DIRECCION y TELEFONO se guardan CIFRADOS por la aplicación (la huella CORREOHASH mantiene el correo único).
 -- Los empleados de ejemplo de más abajo ya se insertan con esos datos cifrados (con la clave del archivo clave_cifrado.key).
 create table EMPLEADO (
 IDEMPLEADO int not null auto_increment,
@@ -19,7 +19,7 @@ CORREOHASH char(64) not null,
 FECHACONTRATO date not null,
 SALARIO varchar(255) not null,
 DIRECCION varchar(400) not null,
-TELEFONO varchar(15) not null,
+TELEFONO varchar(255) not null,
 IDDEPARTAMENTO int null,
 primary key (IDEMPLEADO),
 unique (CORREOHASH) );
@@ -92,7 +92,7 @@ alter table REGISTROTIEMPO
 	add constraint FK_REGISTRO_PROYECTO foreign key (IDPROYECTO) references PROYECTO (IDPROYECTO) on delete restrict on update restrict;
 
 insert into EMPLEADO (NOMBRE, APELLIDO, CORREO, CORREOHASH, FECHACONTRATO, SALARIO, DIRECCION, TELEFONO, IDDEPARTAMENTO)
-values ('Joakin', 'Briones', 'gAAAAABq_LivpJoZzLzv3ht-NqOgZhZ9SOHn4H0NEmkoyV81ysg3iCzylMDsbK2MifZXWc2wSv_TkHF8yxQtFPiRY6smV3NViX_bgzzRPHirnpvaHCSg7fA=', '831cf639bca5db37917506f6fc7afc30cb047106ac35c83e412209e93fa89ff1', curdate(), 'gAAAAABq_LivxOZ1J9sODkQvhiyVKTJeszl8vLbJX0M5-jzOADkkuW4GmyC1u5v-J-XyCmaRK-9CUyz-x09_Wcf6nSb60HgMWA==', 'gAAAAABq_Liv2lE-z7Oy4iLGWOCyiP3-BYI9pNa7wQOYRUGAphUE5J01P0ivmhuTkNQUU8HWTG6pVoLckJn4WIMAyvw5KqvnGA==', '123456789', null);
+values ('Joakin', 'Briones', 'gAAAAABq_LivpJoZzLzv3ht-NqOgZhZ9SOHn4H0NEmkoyV81ysg3iCzylMDsbK2MifZXWc2wSv_TkHF8yxQtFPiRY6smV3NViX_bgzzRPHirnpvaHCSg7fA=', '831cf639bca5db37917506f6fc7afc30cb047106ac35c83e412209e93fa89ff1', curdate(), 'gAAAAABq_LivxOZ1J9sODkQvhiyVKTJeszl8vLbJX0M5-jzOADkkuW4GmyC1u5v-J-XyCmaRK-9CUyz-x09_Wcf6nSb60HgMWA==', 'gAAAAABq_Liv2lE-z7Oy4iLGWOCyiP3-BYI9pNa7wQOYRUGAphUE5J01P0ivmhuTkNQUU8HWTG6pVoLckJn4WIMAyvw5KqvnGA==', 'gAAAAABq_MZ9ZOUiVoVnrOTKmAmAwPgK0vK2mY77P06DyV2xhJ3ML6Yvbj29dbcJbYS7YyKdZE7gK9xSEuzpsfFQVeady5P1dA==', null);
 
 insert into USUARIO (NOMBREUSUARIO, CLAVE, ROL, IDEMPLEADO)
 values ('pepe', SHA2('12345', 256), 'ADMINISTRADOR', last_insert_id());
@@ -102,11 +102,11 @@ alter table INDICADOR
 
 -- ============================================================
 -- Usuarios de ejemplo con otros roles (cambie las claves al desplegar)
---   gerente_rrhh / Gerente2026   -> rol GERENTE_RRHH (único con acceso a las APIs externas y a ver correo, sueldo y dirección)
+--   gerente_rrhh / Gerente2026   -> rol GERENTE_RRHH (único con acceso a las APIs externas y a ver correo, sueldo, dirección y teléfono)
 --   empleado1    / Empleado2026  -> rol EMPLEADO
 -- ============================================================
 insert into EMPLEADO (NOMBRE, APELLIDO, CORREO, CORREOHASH, FECHACONTRATO, SALARIO, DIRECCION, TELEFONO, IDDEPARTAMENTO)
-values ('Camila', 'Soto', 'gAAAAABq_LivkwKH1QEjLCsg6XpYSuTSaNGCcdAQ8ksVX9PLrjgoA7XVDuCoeNghzAxf1i9iVsVm9S_8r5ceybaEBD0sLRqBKczg8jMilFXU1TYYC78WB-k=', 'fa13d2d81d7f7118ddaedb501affc0c01054bd517d9da00ac146b088349e23fc', curdate(), 'gAAAAABq_LivDuDLRQWERWAhmLxYeaoAdsQMjg3LAQlqZ2JVBIlsNeq_VjXzQfmIoHWgbdHByO8DwSLD5qewMll5t5QJNCr1Mw==', 'gAAAAABq_Livl4_Vla70SOC5LJAm6ho9fFyR-qBiXDvr9jLL0GMJw3lOmLXOm0wm9zb_nJUcUgIHjF_RC5g8ZQiY6GzM3M5TxA==', '987654321', null);
+values ('Camila', 'Soto', 'gAAAAABq_LivkwKH1QEjLCsg6XpYSuTSaNGCcdAQ8ksVX9PLrjgoA7XVDuCoeNghzAxf1i9iVsVm9S_8r5ceybaEBD0sLRqBKczg8jMilFXU1TYYC78WB-k=', 'fa13d2d81d7f7118ddaedb501affc0c01054bd517d9da00ac146b088349e23fc', curdate(), 'gAAAAABq_LivDuDLRQWERWAhmLxYeaoAdsQMjg3LAQlqZ2JVBIlsNeq_VjXzQfmIoHWgbdHByO8DwSLD5qewMll5t5QJNCr1Mw==', 'gAAAAABq_Livl4_Vla70SOC5LJAm6ho9fFyR-qBiXDvr9jLL0GMJw3lOmLXOm0wm9zb_nJUcUgIHjF_RC5g8ZQiY6GzM3M5TxA==', 'gAAAAABq_MZ9EpOdKGhlS3MRio3abvdT3VBso0rILCFktFqyPxVq1Nv1HA4ZHzCyCfBdf2JSl1KXv7yDjclbAsYwoMFvYadOrQ==', null);
 set @idGerente = last_insert_id();
 
 insert into USUARIO (NOMBREUSUARIO, CLAVE, ROL, IDEMPLEADO)
@@ -116,7 +116,7 @@ insert into DEPARTAMENTO (NOMBRE, IDGERENTE) values ('Recursos Humanos', @idGere
 update EMPLEADO set IDDEPARTAMENTO = last_insert_id() where IDEMPLEADO = @idGerente;
 
 insert into EMPLEADO (NOMBRE, APELLIDO, CORREO, CORREOHASH, FECHACONTRATO, SALARIO, DIRECCION, TELEFONO, IDDEPARTAMENTO)
-values ('Diego', 'Rojas', 'gAAAAABq_Liv6igssfUDG3fno4tW5wZ3SWV4cLFkD2WT1VkLv-U-y15xbaM4dnOn28wWNGm3pwfc2yPCEOPSORp9WDeBwb9I6JVVPT84zY3Muhr-wekBk2Q=', '84bbfec7c975561ba67fc3ec3365a32d04496ca04fbc559ebe4eddd36f3497f6', curdate(), 'gAAAAABq_LivI6er7f4fJNceKfsO1ggWiuKpc4O-7JqXICg2Nv6yjBjvvH1I1NZp5UuhsYSTDkIc8Cskf6ufEtm8oKOUojYJ0g==', 'gAAAAABq_Livq-rgoSUzmcKnCNn8MRWy7IsZEt61C8Xgbon4vefPLIdxns8p3TiGVzVb_FOGctt1ZwXGszVnCMNAXSdbQzkfqQ==', '912345678', null);
+values ('Diego', 'Rojas', 'gAAAAABq_Liv6igssfUDG3fno4tW5wZ3SWV4cLFkD2WT1VkLv-U-y15xbaM4dnOn28wWNGm3pwfc2yPCEOPSORp9WDeBwb9I6JVVPT84zY3Muhr-wekBk2Q=', '84bbfec7c975561ba67fc3ec3365a32d04496ca04fbc559ebe4eddd36f3497f6', curdate(), 'gAAAAABq_LivI6er7f4fJNceKfsO1ggWiuKpc4O-7JqXICg2Nv6yjBjvvH1I1NZp5UuhsYSTDkIc8Cskf6ufEtm8oKOUojYJ0g==', 'gAAAAABq_Livq-rgoSUzmcKnCNn8MRWy7IsZEt61C8Xgbon4vefPLIdxns8p3TiGVzVb_FOGctt1ZwXGszVnCMNAXSdbQzkfqQ==', 'gAAAAABq_MZ9-hxHXCV09KZtpd5r39e7cnT7At2uIQsDKmpbY3wJ2TSFEHBSAK_xaUjzkkzecMV3xcr_AfYDWaXtXq-Umi8xBA==', null);
 
 insert into USUARIO (NOMBREUSUARIO, CLAVE, ROL, IDEMPLEADO)
 values ('empleado', SHA2('12345', 256), 'EMPLEADO', last_insert_id());

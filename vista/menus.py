@@ -38,7 +38,7 @@ def probarConexion() -> bool:
 def cargaInicial() -> None:
     deptoDTO = DepartamentoDTO()
     deptoDTO.cargarDatos()
-    EmpleadoDTO().cifrarPendientes()      # cifra correo/sueldo/dirección que hayan quedado en claro en la BD
+    EmpleadoDTO().cifrarPendientes()      # cifra correo/sueldo/dirección/teléfono que hayan quedado en claro en la BD
     EmpleadoDTO().cargarDatos()
     deptoDTO.vincularGerentes()
     ProyectoDTO().cargarDatos()

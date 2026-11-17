@@ -23,7 +23,7 @@ def puedeUsarServiciosExternos(usuario) -> bool:
     return esGerenteRRHH(usuario)
 
 
-# Solo el Gerente de Recursos Humanos puede ver correo, sueldo y dirección de los empleados.
+# Solo el Gerente de Recursos Humanos puede ver correo, sueldo, dirección y teléfono de los empleados.
 # Para el resto de los roles (incluido el administrador) esos datos se muestran encriptados.
 def puedeVerDatosSensibles(usuario) -> bool:
     return esGerenteRRHH(usuario)

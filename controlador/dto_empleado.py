@@ -16,9 +16,8 @@ class EmpleadoDTO(BaseDTO):
         lista = []
         for f in filas:
             depto = DepartamentoDAO().buscarDepto(f["IDDEPARTAMENTO"]) if f["IDDEPARTAMENTO"] is not None else None
-            emp = Empleado(f["IDEMPLEADO"], f["NOMBRE"], f["APELLIDO"], "", f["FECHACONTRATO"], None, "",
-                           f["TELEFONO"], depto)
-            emp.setDatosCifrados(f["CORREO"], f["CORREOHASH"], f["SALARIO"], f["DIRECCION"])     # ya vienen cifrados
+            emp = Empleado(f["IDEMPLEADO"], f["NOMBRE"], f["APELLIDO"], "", f["FECHACONTRATO"], None, "", "", depto)
+            emp.setDatosCifrados(f["CORREO"], f["CORREOHASH"], f["SALARIO"], f["DIRECCION"], f["TELEFONO"])  # ya vienen cifrados
             if depto is not None:
                 depto.getEmpleados().append(emp)
             lista.append(emp)
@@ -43,11 +42,12 @@ class EmpleadoDTO(BaseDTO):
         if actual is None:
             return "-Empleado no encontrado-"
         # Se parte de los datos cifrados actuales; los setters ignoran "[ENCRIPTADO]" (campo no modificado)
-        nuevo = Empleado(idEmpleado, nombre, apellido, "", fechaContrato, None, "", telefono)
+        nuevo = Empleado(idEmpleado, nombre, apellido, "", fechaContrato, None, "", "")
         nuevo.copiarDatosCifrados(actual)
         nuevo.setCorreo(correo)
         nuevo.setSalario(salario)
         nuevo.setDireccion(direccion)
+        nuevo.setTelefono(telefono)
         res = EmpleadoDAO().modificarEmpleado(nuevo)
         return self.mensaje(res, "Empleado modificado satisfactoriamente.")
 

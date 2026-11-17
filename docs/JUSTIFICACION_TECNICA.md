@@ -22,7 +22,7 @@
 ## 2b. Cifrado de datos sensibles
 | Decisión | Justificación |
 |---|---|
-| Cifrar correo, sueldo y dirección **en la BD** (`dao/cifrado.py`, Fernet de `cryptography`) | Las claves ya eran hash, pero estos datos estaban en claro; cifrarlos en la BD protege también ante acceso directo (phpMyAdmin) del administrador. Fernet es cifrado autenticado: detecta datos alterados. |
+| Cifrar correo, sueldo, dirección y teléfono **en la BD** (`dao/cifrado.py`, Fernet de `cryptography`) | Las claves ya eran hash, pero estos datos estaban en claro; cifrarlos en la BD protege también ante acceso directo (phpMyAdmin) del administrador. Fernet es cifrado autenticado: detecta datos alterados. |
 | Descifrar solo al pedir el dato y solo si el rol lo permite (`Empleado.getCorreo()` etc. + `controlador/sesion.py`) | El administrador nunca tiene el dato en claro en memoria; sin sesión no se ve nada (falla cerrado). |
 | Solo `GERENTE_RRHH` ve los datos (`permisos.puedeVerDatosSensibles`) | Requisito del profesor: el administrador los ve encriptados. |
 | Huella `CORREOHASH` (HMAC-SHA256) | El cifrado es aleatorio, por lo que un `UNIQUE` sobre el correo cifrado no funciona; la huella mantiene correos únicos sin guardarlos en claro. |

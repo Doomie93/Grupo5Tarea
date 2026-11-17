@@ -1,4 +1,4 @@
-"""Cifra ahora mismo los datos sensibles (correo, sueldo, dirección) que sigan en texto plano en la base de datos.
+"""Cifra ahora mismo los datos sensibles (correo, sueldo, dirección y teléfono) que sigan en texto plano en la base de datos.
 Uso:  python cifrar_datos.py      (es seguro ejecutarlo varias veces)"""
 from dao.dao_empleado import EmpleadoDAO
 

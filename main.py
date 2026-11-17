@@ -1,7 +1,21 @@
+import logging
 from vista.entrada import bloquearAtajos, pedir, esFinDeEntrada, MSG_ATAJO, OperacionCancelada
 from vista.menus import probarConexion, validarLogin, inicial
 
 MAX_INTENTOS = 3
+log = logging.getLogger("ecotech")
+
+
+# Los detalles técnicos de los errores se guardan en este archivo; en pantalla solo se muestran mensajes genéricos
+def configurarLog() -> None:
+    logging.basicConfig(filename="ecotech_errores.log", level=logging.WARNING, encoding="utf-8",
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+
+# Registra el detalle en el log y retorna un mensaje que no expone información interna
+def _errorGenerico(ex: BaseException) -> str:
+    log.error("Error inesperado: %r", ex)
+    return "-Ocurrió un error inesperado, intente nuevamente-"
 
 
 # Verifica la conexión con la BD ya existente; permite reintentar si MySQL aún no está activo
@@ -16,7 +30,7 @@ def conectarBD() -> bool:
         except (Exception, KeyboardInterrupt) as ex:
             if esFinDeEntrada(ex):
                 return False
-            print(MSG_ATAJO if isinstance(ex, KeyboardInterrupt) else f"-Error inesperado: {ex}-")
+            print(MSG_ATAJO if isinstance(ex, KeyboardInterrupt) else _errorGenerico(ex))
 
 
 # Login con 3 intentos; Ctrl+C / errores no cierran el programa ni cuentan como intento.
@@ -36,13 +50,14 @@ def login():
         except (Exception, KeyboardInterrupt) as ex:
             if esFinDeEntrada(ex):
                 return None
-            print(MSG_ATAJO if isinstance(ex, KeyboardInterrupt) else f"-Error inesperado: {ex}-")
+            print(MSG_ATAJO if isinstance(ex, KeyboardInterrupt) else _errorGenerico(ex))
             print("-Intente nuevamente-")
     print("-Acceso bloqueado por demasiados intentos-")
     return None
 
 
 def main() -> None:
+    configurarLog()
     bloquearAtajos()
     print("\n=== EcoTech Solutions ===\n")
     if not conectarBD():
@@ -58,7 +73,7 @@ def main() -> None:
         except (Exception, KeyboardInterrupt) as ex:
             if esFinDeEntrada(ex):
                 break
-            print(MSG_ATAJO if isinstance(ex, KeyboardInterrupt) else f"-Error inesperado: {ex}-")
+            print(MSG_ATAJO if isinstance(ex, KeyboardInterrupt) else _errorGenerico(ex))
 
 
 if __name__ == "__main__":

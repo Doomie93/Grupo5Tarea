@@ -8,18 +8,21 @@ IDGERENTE int null,
 primary key (IDDEPARTAMENTO),
 unique (NOMBRE) );
 
+-- CORREO, SALARIO y DIRECCION se guardan CIFRADOS por la aplicación (la huella CORREOHASH mantiene el correo único).
+-- Los empleados de ejemplo de más abajo ya se insertan con esos datos cifrados (con la clave del archivo clave_cifrado.key).
 create table EMPLEADO (
 IDEMPLEADO int not null auto_increment,
 NOMBRE varchar(50) not null,
 APELLIDO varchar(50) not null,
-CORREO varchar(100) not null,
+CORREO varchar(400) not null,
+CORREOHASH char(64) not null,
 FECHACONTRATO date not null,
-SALARIO int not null,
-DIRECCION varchar(100) not null,
+SALARIO varchar(255) not null,
+DIRECCION varchar(400) not null,
 TELEFONO varchar(15) not null,
 IDDEPARTAMENTO int null,
 primary key (IDEMPLEADO),
-unique (CORREO) );
+unique (CORREOHASH) );
 
 create table USUARIO (
 IDUSUARIO int not null auto_increment,
@@ -56,6 +59,17 @@ IDEMPLEADO int not null,
 IDPROYECTO int not null,
 primary key (IDREGISTRO) );
 
+create table INDICADOR (
+IDINDICADOR int not null auto_increment,
+IDUSUARIO int not null,
+AUTOR varchar(30) not null,
+CODIGO varchar(10) not null,
+FECHA date not null,
+VALOR decimal(18,4) not null,
+FECHACONSULTA timestamp not null default current_timestamp,
+primary key (IDINDICADOR),
+unique (IDUSUARIO, AUTOR, CODIGO, FECHA) );
+
 alter table EMPLEADO
 	add constraint FK_EMPLEADO_DEPARTAMENTO foreign key (IDDEPARTAMENTO) references DEPARTAMENTO (IDDEPARTAMENTO) on delete restrict on update restrict;
 
@@ -77,8 +91,32 @@ alter table REGISTROTIEMPO
 alter table REGISTROTIEMPO
 	add constraint FK_REGISTRO_PROYECTO foreign key (IDPROYECTO) references PROYECTO (IDPROYECTO) on delete restrict on update restrict;
 
-insert into EMPLEADO (NOMBRE, APELLIDO, CORREO, FECHACONTRATO, SALARIO, DIRECCION, TELEFONO, IDDEPARTAMENTO)
-values ('Joakin', 'Briones', 'correo@gmail.com', curdate(), 99999, 'Recoleta', '123456789', null);
+insert into EMPLEADO (NOMBRE, APELLIDO, CORREO, CORREOHASH, FECHACONTRATO, SALARIO, DIRECCION, TELEFONO, IDDEPARTAMENTO)
+values ('Joakin', 'Briones', 'gAAAAABq_LivpJoZzLzv3ht-NqOgZhZ9SOHn4H0NEmkoyV81ysg3iCzylMDsbK2MifZXWc2wSv_TkHF8yxQtFPiRY6smV3NViX_bgzzRPHirnpvaHCSg7fA=', '831cf639bca5db37917506f6fc7afc30cb047106ac35c83e412209e93fa89ff1', curdate(), 'gAAAAABq_LivxOZ1J9sODkQvhiyVKTJeszl8vLbJX0M5-jzOADkkuW4GmyC1u5v-J-XyCmaRK-9CUyz-x09_Wcf6nSb60HgMWA==', 'gAAAAABq_Liv2lE-z7Oy4iLGWOCyiP3-BYI9pNa7wQOYRUGAphUE5J01P0ivmhuTkNQUU8HWTG6pVoLckJn4WIMAyvw5KqvnGA==', '123456789', null);
 
 insert into USUARIO (NOMBREUSUARIO, CLAVE, ROL, IDEMPLEADO)
 values ('pepe', SHA2('12345', 256), 'ADMINISTRADOR', last_insert_id());
+
+alter table INDICADOR
+	add constraint FK_INDICADOR_USUARIO foreign key (IDUSUARIO) references USUARIO (IDUSUARIO) on delete restrict on update restrict;
+
+-- ============================================================
+-- Usuarios de ejemplo con otros roles (cambie las claves al desplegar)
+--   gerente_rrhh / Gerente2026   -> rol GERENTE_RRHH (único con acceso a las APIs externas y a ver correo, sueldo y dirección)
+--   empleado1    / Empleado2026  -> rol EMPLEADO
+-- ============================================================
+insert into EMPLEADO (NOMBRE, APELLIDO, CORREO, CORREOHASH, FECHACONTRATO, SALARIO, DIRECCION, TELEFONO, IDDEPARTAMENTO)
+values ('Camila', 'Soto', 'gAAAAABq_LivkwKH1QEjLCsg6XpYSuTSaNGCcdAQ8ksVX9PLrjgoA7XVDuCoeNghzAxf1i9iVsVm9S_8r5ceybaEBD0sLRqBKczg8jMilFXU1TYYC78WB-k=', 'fa13d2d81d7f7118ddaedb501affc0c01054bd517d9da00ac146b088349e23fc', curdate(), 'gAAAAABq_LivDuDLRQWERWAhmLxYeaoAdsQMjg3LAQlqZ2JVBIlsNeq_VjXzQfmIoHWgbdHByO8DwSLD5qewMll5t5QJNCr1Mw==', 'gAAAAABq_Livl4_Vla70SOC5LJAm6ho9fFyR-qBiXDvr9jLL0GMJw3lOmLXOm0wm9zb_nJUcUgIHjF_RC5g8ZQiY6GzM3M5TxA==', '987654321', null);
+set @idGerente = last_insert_id();
+
+insert into USUARIO (NOMBREUSUARIO, CLAVE, ROL, IDEMPLEADO)
+values ('gerente', SHA2('12345', 256), 'GERENTE_RRHH', @idGerente);
+
+insert into DEPARTAMENTO (NOMBRE, IDGERENTE) values ('Recursos Humanos', @idGerente);
+update EMPLEADO set IDDEPARTAMENTO = last_insert_id() where IDEMPLEADO = @idGerente;
+
+insert into EMPLEADO (NOMBRE, APELLIDO, CORREO, CORREOHASH, FECHACONTRATO, SALARIO, DIRECCION, TELEFONO, IDDEPARTAMENTO)
+values ('Diego', 'Rojas', 'gAAAAABq_Liv6igssfUDG3fno4tW5wZ3SWV4cLFkD2WT1VkLv-U-y15xbaM4dnOn28wWNGm3pwfc2yPCEOPSORp9WDeBwb9I6JVVPT84zY3Muhr-wekBk2Q=', '84bbfec7c975561ba67fc3ec3365a32d04496ca04fbc559ebe4eddd36f3497f6', curdate(), 'gAAAAABq_LivI6er7f4fJNceKfsO1ggWiuKpc4O-7JqXICg2Nv6yjBjvvH1I1NZp5UuhsYSTDkIc8Cskf6ufEtm8oKOUojYJ0g==', 'gAAAAABq_Livq-rgoSUzmcKnCNn8MRWy7IsZEt61C8Xgbon4vefPLIdxns8p3TiGVzVb_FOGctt1ZwXGszVnCMNAXSdbQzkfqQ==', '912345678', null);
+
+insert into USUARIO (NOMBREUSUARIO, CLAVE, ROL, IDEMPLEADO)
+values ('empleado', SHA2('12345', 256), 'EMPLEADO', last_insert_id());

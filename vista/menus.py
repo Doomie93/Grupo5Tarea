@@ -1,4 +1,5 @@
 import sys
+import logging
 from datetime import date
 from controlador.dto_departamento import DepartamentoDTO
 from controlador.dto_empleado import EmpleadoDTO
@@ -6,9 +7,12 @@ from controlador.dto_proyecto import ProyectoDTO
 from controlador.dto_asignacion import AsignacionProyectoDTO
 from controlador.dto_registro import RegistroTiempoDTO
 from controlador.dto_usuario import UsuarioDTO
+from controlador import permisos, sesion
 from vista.entrada import pedir, pedirClave, MSG_ATAJO, OperacionCancelada
 from vista.validaciones import (validaInt, validaTexto, validaCorreo, validaTelefono, validaFecha,
                                 validaNombreUsuario, validaClaveNueva, validaConfirmacion, validaOpc)
+
+log = logging.getLogger("ecotech")
 
 
 # ------------------------------------------------------------------ utilidades
@@ -34,6 +38,7 @@ def probarConexion() -> bool:
 def cargaInicial() -> None:
     deptoDTO = DepartamentoDTO()
     deptoDTO.cargarDatos()
+    EmpleadoDTO().cifrarPendientes()      # cifra correo/sueldo/dirección que hayan quedado en claro en la BD
     EmpleadoDTO().cargarDatos()
     deptoDTO.vincularGerentes()
     ProyectoDTO().cargarDatos()
@@ -286,9 +291,10 @@ def listarAsignacionesPorProyecto() -> None:
 
 
 # ------------------------------------------------------------------ registro de horas
-def registrarHoras() -> None:
+def registrarHoras(emp=None) -> None:
     titulo("Registrar Horas Trabajadas.")
-    emp = seleccionarEmpleado()
+    if emp is None:
+        emp = seleccionarEmpleado()
     if emp is None:
         return
     proy = seleccionarProyecto()
@@ -331,8 +337,8 @@ def registrarUsuario() -> None:
         return
     nombre = validaNombreUsuario()
     clave = validaClaveNueva()
-    print("Rol: 1. ADMINISTRADOR | 2. USUARIO")
-    rol = "ADMINISTRADOR" if validaInt("Seleccione el rol", 1, 2) == 1 else "USUARIO"
+    print("Rol: 1. ADMINISTRADOR | 2. GERENTE_RRHH (Gerente de Recursos Humanos) | 3. EMPLEADO")
+    rol = permisos.ROLES[validaInt("Seleccione el rol", 1, 3) - 1]
     print(UsuarioDTO().addUsuario(nombre, clave, rol, emp.getId()))
 
 
@@ -361,8 +367,9 @@ def ejecutarMenu(nombre: str, opciones: list, textoSalida: str = "Volver al Menu
             if not sys.stdin.isatty():
                 raise
             print("\n" + MSG_ATAJO)
-        except Exception as ex:
-            print(f"-Ocurrió un error inesperado, intente nuevamente: {ex}-")
+        except Exception:
+            log.exception("Error inesperado en el menú '%s'", nombre)     # el detalle va al log, no a la pantalla
+            print("-Ocurrió un error inesperado, intente nuevamente-")
 
 
 def menuDepartamentos() -> None:
@@ -410,16 +417,65 @@ def menuRegistros() -> None:
         ("Registros por Proyecto", listarRegistrosPorProyecto)])
 
 
-# Menú principal
+# Menú de proyectos de solo lectura (Gerente RRHH y Empleado)
+def menuProyectosConsulta() -> None:
+    ejecutarMenu("Proyectos (consulta)", [
+        ("Mostrar todos los Proyectos", listarProyectos),
+        ("Buscar Proyecto", buscarProyecto)])
+
+
+# Menú del rol EMPLEADO: solo ve proyectos y trabaja con SUS propias asignaciones y horas
+def menuEmpleadoPropio(usuario) -> None:
+    def propio():
+        return EmpleadoDTO().findEmpleado(usuario.getEmpleado().getId())
+
+    def misAsignaciones() -> None:
+        titulo("Mis Asignaciones.")
+        listar(AsignacionProyectoDTO().findAsignacionesPorEmpleado(propio()), "No tiene asignaciones.")
+
+    def misRegistros() -> None:
+        titulo("Mis Registros de Tiempo.")
+        emp = propio()
+        listar(RegistroTiempoDTO().findRegistrosPorEmpleado(emp), "No tiene registros.")
+        print(f"Total de horas: {sum(r.getHorasTrabajadas() for r in emp.getRegistros())}")
+
+    ejecutarMenu("Mi Espacio de Trabajo", [
+        ("Ver Proyectos", menuProyectosConsulta),
+        ("Mis Asignaciones", misAsignaciones),
+        ("Registrar mis Horas", lambda: registrarHoras(propio())),
+        ("Mis Registros de Tiempo", misRegistros)], "Salir del Sistema")
+
+
+# Menú principal (las opciones dependen del rol del usuario)
 def inicial(usuario) -> None:
+    from vista.menu_servicios import menuServicios      # import tardío: menu_servicios usa este módulo
+    sesion.iniciar(usuario)            # define qué datos sensibles puede ver este usuario
+    try:
+        _menuPrincipal(usuario, menuServicios)
+    finally:
+        sesion.cerrar()
+
+
+def _menuPrincipal(usuario, menuServicios) -> None:
     cargaInicial()
     emp = usuario.getEmpleado()
     print(f"\nBienvenido/a {emp.getNombre()} {emp.getApellido()} ({usuario.getRol()})")
-    ejecutarMenu("EcoTech Solutions - Gestion de Empleados", [
-        ("Departamentos", menuDepartamentos),
-        ("Empleados", menuEmpleados),
-        ("Proyectos", menuProyectos),
-        ("Asignaciones a Proyectos", menuAsignaciones),
-        ("Registro de Horas", menuRegistros),
-        ("Registrar Usuario", registrarUsuario)], "Salir del Sistema")
+    if permisos.esAdministrador(usuario):
+        opciones = [("Departamentos", menuDepartamentos),
+                    ("Empleados", menuEmpleados),
+                    ("Proyectos", menuProyectos),
+                    ("Asignaciones a Proyectos", menuAsignaciones),
+                    ("Registro de Horas", menuRegistros),
+                    ("Registrar Usuario", registrarUsuario)]
+    elif permisos.esGerenteRRHH(usuario):
+        opciones = [("Departamentos", menuDepartamentos),
+                    ("Empleados", menuEmpleados),
+                    ("Proyectos (consulta)", menuProyectosConsulta),
+                    ("Asignaciones a Proyectos", menuAsignaciones),
+                    ("Registro de Horas", menuRegistros),
+                    ("Servicios Externos (indicadores y clima)", lambda: menuServicios(usuario))]
+    else:
+        menuEmpleadoPropio(usuario)
+        return print("Programa Finalizado.")
+    ejecutarMenu("EcoTech Solutions - Gestion de Empleados", opciones, "Salir del Sistema")
     print("Programa Finalizado.")

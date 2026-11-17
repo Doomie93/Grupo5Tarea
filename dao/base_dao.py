@@ -1,5 +1,8 @@
 from conex.conn import Conex
 from conex import config
+import logging
+
+log = logging.getLogger("ecotech.dao")
 
 # Códigos de resultado (los valores > 0 indican filas afectadas)
 ERROR_GENERAL = -1
@@ -31,7 +34,7 @@ class BaseDAO():
             print("-No se pudo conectar a la base de datos-")
             print("-Verifique que MySQL esté activo en XAMPP, que la base exista (script mydb_ecotech.txt)")
             print(" y que las credenciales de conex/config.py sean correctas-")
-            print(f"-Detalle: {c.getError()}-")
+            log.error("No se pudo conectar a la BD: %s", c.getError())     # el detalle (host/usuario) solo va al log
             return False
         c.closeConex()
         return True
@@ -69,6 +72,25 @@ class BaseDAO():
         finally:
             c.closeConex()
 
+    # INSERT/UPDATE de varias filas en una sola transacción -> retorna filas afectadas o un código de error negativo
+    def _ejecutarVarios(self, sql: str, lista: list) -> int:
+        c = self._abrir()
+        if not c.estaConectado():
+            return ERROR_CONEXION
+        try:
+            cursor = c.getConex().cursor()
+            cursor.executemany(sql, lista)
+            c.getConex().commit()
+            return cursor.rowcount
+        except Exception as ex:
+            try:
+                c.getConex().rollback()
+            except Exception:
+                pass
+            return self._clasificarError(ex)
+        finally:
+            c.closeConex()
+
     # SELECT -> retorna lista de diccionarios (None si hubo un problema)
     def _consultar(self, sql: str, params: tuple = ()) -> list:
         c = self._abrir()
@@ -80,7 +102,8 @@ class BaseDAO():
             cursor.execute(sql, params)
             return cursor.fetchall()
         except Exception as ex:
-            print(f"-Problemas con la base de datos: {ex}-")
+            log.error("Error en consulta SQL: %r", ex)
+            print("-Problemas con la base de datos, vuelva a intentarlo-")
             return None
         finally:
             c.closeConex()

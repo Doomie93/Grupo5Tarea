@@ -1,4 +1,6 @@
 from modelo.departamento import Departamento
+from controlador import sesion
+from dao import cifrado
 
 
 class Empleado():
@@ -8,15 +10,23 @@ class Empleado():
 
     # Constructor (las listas NO se cargan aquí, se cargan al iniciar la aplicación)
     def __init__(self, idEmpleado: int = 0, nombre: str = "", apellido: str = "", correo: str = "",
-                 fechaContrato=None, salario: int = 0, direccion: str = "", telefono: str = "",
+                 fechaContrato=None, salario: int = None, direccion: str = "", telefono: str = "",
                  departamento: Departamento = None) -> None:
         self.__idEmpleado = idEmpleado
         self.__nombre = nombre
         self.__apellido = apellido
-        self.__correo = correo
+        # Correo, salario y dirección se guardan SIEMPRE cifrados (así también viajan a la BD)
+        self.__correo = ""
+        self.__correoHash = ""
+        self.__salario = ""
+        self.__direccion = ""
         self.__fechaContrato = fechaContrato
-        self.__salario = salario
-        self.__direccion = direccion
+        if correo:
+            self.setCorreo(correo)
+        if salario is not None:
+            self.setSalario(salario)
+        if direccion:
+            self.setDireccion(direccion)
         self.__telefono = telefono
         self.__departamento = departamento
         self.__asignaciones = []
@@ -26,10 +36,20 @@ class Empleado():
     def __str__(self) -> str:
         fecha = self.__fechaContrato.strftime("%d-%m-%Y") if self.__fechaContrato is not None else "-"
         depto = self.__departamento.getNombre() if self.__departamento is not None else "Sin departamento"
-        salario = f"${self.__salario:,}".replace(",", ".")
-        return (f"Id: {self.__idEmpleado} | {self.__nombre} {self.__apellido} | Correo: {self.__correo} | "
+        sueldo = self.getSalario()
+        salario = f"${sueldo:,}".replace(",", ".") if isinstance(sueldo, int) else sueldo
+        return (f"Id: {self.__idEmpleado} | {self.__nombre} {self.__apellido} | Correo: {self.getCorreo()} | "
                 f"Contrato: {fecha} | Salario: {salario} | Tel: {self.__telefono} | "
-                f"Dirección: {self.__direccion} | Departamento: {depto}")
+                f"Dirección: {self.getDireccion()} | Departamento: {depto}")
+
+    # Entrega el dato descifrado solo si el usuario de la sesión tiene permiso; si no, el texto "[ENCRIPTADO]"
+    def __ver(self, token: str):
+        if token == "":
+            return ""
+        if not sesion.puedeVerDatosSensibles():
+            return cifrado.MASCARA
+        dato = cifrado.descifrar(token)
+        return cifrado.ILEGIBLE if dato is None else dato
 
     # Getters
     def getId(self) -> int:
@@ -39,13 +59,24 @@ class Empleado():
     def getApellido(self) -> str:
         return self.__apellido
     def getCorreo(self) -> str:
-        return self.__correo
+        return self.__ver(self.__correo)
     def getFechaContrato(self):
         return self.__fechaContrato
-    def getSalario(self) -> int:
-        return self.__salario
+    def getSalario(self):
+        dato = self.__ver(self.__salario)
+        return int(dato) if dato not in ("", cifrado.MASCARA, cifrado.ILEGIBLE) else dato
     def getDireccion(self) -> str:
+        return self.__ver(self.__direccion)
+
+    # Valores cifrados tal como se guardan en la BD (nunca exponen el dato original)
+    def getCorreoCifrado(self) -> str:
+        return self.__correo
+    def getSalarioCifrado(self) -> str:
+        return self.__salario
+    def getDireccionCifrada(self) -> str:
         return self.__direccion
+    def getCorreoHash(self) -> str:
+        return self.__correoHash
     def getTelefono(self) -> str:
         return self.__telefono
     def getDepartamento(self) -> Departamento:
@@ -64,14 +95,33 @@ class Empleado():
         self.__nombre = nombre
     def setApellido(self, apellido: str) -> None:
         self.__apellido = apellido
+    # Los setters reciben el dato en claro y lo cifran. Si llega "[ENCRIPTADO]" (quien no puede ver el dato
+    # presionó ENTER para mantenerlo) se ignora y se conserva el valor actual.
     def setCorreo(self, correo: str) -> None:
-        self.__correo = correo
+        if correo == cifrado.MASCARA:
+            return
+        self.__correo = cifrado.cifrar(correo)
+        self.__correoHash = cifrado.huellaCorreo(correo)
     def setFechaContrato(self, fechaContrato) -> None:
         self.__fechaContrato = fechaContrato
     def setSalario(self, salario: int) -> None:
-        self.__salario = salario
+        if salario == cifrado.MASCARA:
+            return
+        self.__salario = cifrado.cifrar(int(salario))
     def setDireccion(self, direccion: str) -> None:
+        if direccion == cifrado.MASCARA:
+            return
+        self.__direccion = cifrado.cifrar(direccion)
+
+    # Carga los valores ya cifrados (desde la BD) o los copia desde otro empleado, sin pasar por el dato en claro
+    def setDatosCifrados(self, correo: str, correoHash: str, salario: str, direccion: str) -> None:
+        self.__correo = correo
+        self.__correoHash = correoHash
+        self.__salario = salario
         self.__direccion = direccion
+    def copiarDatosCifrados(self, otro) -> None:
+        self.setDatosCifrados(otro.getCorreoCifrado(), otro.getCorreoHash(), otro.getSalarioCifrado(),
+                              otro.getDireccionCifrada())
     def setTelefono(self, telefono: str) -> None:
         self.__telefono = telefono
     def setDepartamento(self, departamento: Departamento) -> None:
